@@ -122,9 +122,9 @@ Proven with a token-only client (no admin client certificate):
 
 ## Network policy
 
-Cilium `policyEnforcementMode` is `default`. `restricted-baseline` selects every pod whose namespace is not `kube-system`, so those pods are enforced. Same-namespace traffic is allowed by a `CiliumNetworkPolicy` named `allow-same-namespace` in each platform namespace. Manifests: `platform/network/policies.yaml`. Argo CD app: `gitops/apps/network.yaml`.
+Cilium `policyEnforcementMode` is `default`. `restricted-baseline` selects every pod, including `kube-system`. Same-namespace traffic is allowed by a `CiliumNetworkPolicy` named `allow-same-namespace` in each platform namespace, including `kube-system`. Manifests: `platform/network/policies.yaml`. Argo CD app: `gitops/apps/network.yaml`.
 
-`kube-system` is not selected. Cilium, CoreDNS, local-path, and metrics-server stay up without a policy. That is an explicit exception. Hubble UI also lives in `kube-system`.
+`kube-system-platform` allows the API, the node, health checks, and the ingress controller. `kube-dns-from-cluster` allows every pod to query CoreDNS and allows CoreDNS to reach the host resolver on UDP/TCP 53. Cilium itself is host-networked, so this policy does not sit on the dataplane. After the change, `cilium status --brief` still printed `OK` and `nslookup kubernetes.default` still returned `10.43.0.1`.
 
 Default for every other namespace:
 
@@ -143,6 +143,8 @@ Further exceptions, each one a named policy:
 | teams-to-vault | Team pods egress to Vault TCP 8200 |
 | registry-pulls | Any non-kube-system pod to Harbor TCP 80, 443, 5000 |
 | opencost-to-mimir / mimir-from-opencost | OpenCost to Mimir TCP 9009 |
+| kube-system-platform | kube-system to the API, node, and health endpoints, and ingress to Hubble |
+| kube-dns-from-cluster | Cluster pods to CoreDNS :53, and CoreDNS egress to the host resolver :53 |
 
 Public image pulls (ghcr.io, docker.io, quay.io) are done by containerd on the node. They do not pass through the pod network, so NetworkPolicy does not see them. In-cluster pulls from Harbor are covered by `registry-pulls`.
 
@@ -158,15 +160,14 @@ Proven from the sample pod in `team-a`:
 
 `ClusterIssuer/selfsigned-bootstrap` issues Certificate `platform-ca` (namespace `cert-manager`, secret `platform-ca-secret`, CN `lab-platform-ca`, ECDSA P-256, CA). `ClusterIssuer/platform-ca` is the issuer workloads use. The CA is exported to `credentials/platform-ca.crt`.
 
-CoreDNS keeps the stock Corefile. `platform/coredns/custom.yaml` adds a `template` plugin (the stock file already has `hosts`, and a second `hosts` plugin crash-loops CoreDNS). Every `*.lab.local` name answers `10.114.66.182` inside the cluster.
+The only lab suffix is `lab.test`. `.local` is not used, because systemd-resolved will not answer it. CoreDNS keeps the stock Corefile. `platform/coredns/custom.yaml` adds a `template` plugin (the stock file already has `hosts`, and a second `hosts` plugin crash-loops CoreDNS). Every `*.lab.test` name answers `10.114.66.182` inside the cluster.
 
-The host browser does not use CoreDNS, and `systemd-resolved` will not answer `*.local`. The name has to be in `/etc/hosts`. On 26 Nov 2026 that line was missing (the file was still the stock hosts file from 23 Aug), so `https://sample.lab.local` failed as an unknown host even though `10.114.66.182:443` was open. The line is now:
+On the host, container `lab-dns` (dnsmasq, `platform/dns/lab-test.conf`) listens on `127.0.0.1:5354` and answers `*.lab.test` with `10.114.66.182`. `/etc/systemd/resolved.conf.d/lab-test.conf` sends only that suffix there. `/etc/hosts` has the same names as a fallback. A name that is not in the hosts file, such as `notinhosts.lab.test`, still resolves. The platform CA is in the host trust store and in the Firefox profile `dkj2x7yf.default`.
 
 ```text
-10.114.66.182 argocd.lab.local grafana.lab.local hubble.lab.local gitea.lab.local harbor.lab.local vault.lab.local sample.lab.local opencost.lab.local
+curl -sS -o /dev/null -w '%{http_code}\n' https://sample.lab.test/healthz
+200
 ```
-
-The platform CA is in the host trust store (`/usr/local/share/ca-certificates/lab-platform-ca.crt`) and in the Firefox profile `dkj2x7yf.default`. `curl https://sample.lab.local/healthz` returns 200 with no `--resolve` and no `--cacert`. Restart Firefox if it was already open when the CA was imported.
 
 HAProxy is a DaemonSet with host ports. Ingress objects have an empty load-balancer status, so Argo CD uses a health check that treats those Ingresses as Healthy. HTTP on the node IP without a Host header returns 404.
 
@@ -175,16 +176,16 @@ HAProxy is a DaemonSet with host ports. Ingress objects have an empty load-balan
 | Service | URL | Login |
 | --- | --- | --- |
 | API | https://10.114.66.182:6443 | `credentials/kubeconfig` |
-| Sample app | https://sample.lab.local | none. podinfo 6.17.0, HTTP/2 |
-| Argo CD | https://argocd.lab.local | user `admin`, password file `credentials/argocd-admin-password` |
-| Grafana | https://grafana.lab.local | user `admin`, `GRAFANA_ADMIN_PASSWORD` in `credentials/lab-secrets.env` |
-| Hubble UI | https://hubble.lab.local | none |
-| Gitea | https://gitea.lab.local | user `labadmin`, `GITEA_ADMIN_PASSWORD` in `credentials/lab-secrets.env`. SSH is off |
-| Harbor | https://harbor.lab.local | user `admin`, `HARBOR_ADMIN_PASSWORD` in `credentials/lab-secrets.env` |
-| Vault | https://vault.lab.local | root token `VAULT_ROOT_TOKEN` in `credentials/lab-secrets.env` |
-| OpenCost | https://opencost.lab.local | none |
+| Sample app | https://sample.lab.test | none. podinfo 6.17.0, HTTP/2 |
+| Argo CD | https://argocd.lab.test | user `admin`, password file `credentials/argocd-admin-password` |
+| Grafana | https://grafana.lab.test | user `admin`, `GRAFANA_ADMIN_PASSWORD` in `credentials/lab-secrets.env` |
+| Hubble UI | https://hubble.lab.test | none |
+| Gitea | https://gitea.lab.test | user `labadmin`, `GITEA_ADMIN_PASSWORD` in `credentials/lab-secrets.env`. SSH is off |
+| Harbor | https://harbor.lab.test | user `admin`, `HARBOR_ADMIN_PASSWORD` in `credentials/lab-secrets.env` |
+| Vault | https://vault.lab.test | root token `VAULT_ROOT_TOKEN` in `credentials/lab-secrets.env` |
+| OpenCost | https://opencost.lab.test | none |
 
-`credentials/lab-secrets.env` is mode 600 and gitignored. The same Vault root token is also in `platform/vault/values.yaml`, and the Harbor `secretKey` is in `platform/harbor/values.yaml`, so Argo CD does not reset them on sync. Treat the repo as a private lab repo.
+`credentials/lab-secrets.env` is mode 600 and gitignored. It holds the Vault root token and the unseal key. The Harbor encryption key is in Secret `harbor/harbor-secret-key`, and the unseal material is in Secret `vault/vault-unseal`. Neither value is in the git values, so a sync does not reset them.
 
 Git remote used by Argo CD: `http://gitea.gitea.svc.cluster.local:3000/labadmin/local-kubenrtetes.git`. The host remote `origin` is `http://127.0.0.1:3000/labadmin/local-kubenrtetes.git` and only works while `kubectl -n gitea port-forward svc/gitea 3000:3000` is running. There is no GitHub remote.
 
@@ -196,17 +197,15 @@ Repo server parallelism is 1 and `ARGOCD_EXEC_TIMEOUT` is 10m. Several charts pu
 
 ## Secrets
 
-Vault 2.2.2 runs as pod `vault-0`, dev mode, storage in memory, unsealed, UI on. The injector is off. Kubernetes auth is enabled. Policy `team-a` reads `secret/data/teams/team-a/*`. Role `team-a` is bound to ServiceAccount `team-a` in namespace `team-a`. kv-v2 is mounted at `secret/`.
+Vault 2.2.2 runs as pod `vault-0` on `k3s-server`, file storage on PVC `data-vault-0` (1Gi, local-path), unsealed, UI on. The injector is off. A postStart hook unseals from Secret `vault-unseal`. Kubernetes auth is enabled. Policy `team-a` reads `secret/data/teams/team-a/*`. Role `team-a` is bound to ServiceAccount `team-a` in namespace `team-a`. kv-v2 is mounted at `secret/`.
 
-From the sample pod, that ServiceAccount logged in and read `secret/data/teams/team-a/demo` (`value=team-a-ok`). The same token received HTTP 403 for `secret/data/teams/team-b/demo`.
-
-Dev mode loses secrets when the pod restarts. A raft cluster was not used: the server VM has 4 GiB and was already near its limit.
+After the pod was deleted and came back unsealed, the sample ServiceAccount read `secret/data/teams/team-a/demo` (`value=vault-persist-ok`) and was denied `teams/team-b/demo`. The server holds this one small volume. A raft cluster was not added.
 
 ## Observability
 
-Alloy runs on both nodes, remote-writes to Mimir, and ships pod logs to Loki. Grafana datasources are `mimir` (Prometheus URL `http://mimir.observability.svc.cluster.local:9009/prometheus`) and `loki`. Dashboards `Cluster`, `Hubble`, and `Sample app` are ConfigMap `lab-dashboards` (label `grafana_dashboard=1`). The sample panel is `go_goroutines{namespace="team-a"}`, which is the series podinfo actually exports here.
+Alloy runs on both nodes, remote-writes to Mimir, and ships pod logs to Loki. Grafana, Mimir, and Loki run on `k3s-agent`. Grafana datasources are `mimir` (Prometheus URL `http://mimir.observability.svc.cluster.local:9009/prometheus`) and `loki`. Dashboards `Cluster`, `Hubble`, `Sample app`, and `Falco` are ConfigMap `lab-dashboards` (label `grafana_dashboard=1`). The Falco panel queries `{namespace="falco"} |= "Critical"`. The sample panel is `go_goroutines{namespace="team-a"}`.
 
-Mimir and Loki use an emptyDir. Data does not survive a pod restart. Grafana persistence is off.
+Mimir uses PVC `mimir-data` (2Gi), Loki uses `loki-data` (2Gi), and Grafana uses its chart PVC (1Gi), all local-path on `k3s-agent`. A pushed Loki line `persist-proof-…` and Mimir sample `sum(kube_pod_status_phase{phase="Running"})` at timestamp `1795695586` were still queryable after those pods were deleted.
 
 Proven:
 
@@ -225,9 +224,9 @@ Kyverno v1.20 rejects the old `kyverno.io/v1` ClusterPolicy. Policies are `polic
 - `require-team-app-label` denied a pod with no `app.kubernetes.io/name`.
 - `disallow-privileged-teams` denied a pod with `securityContext.privileged: true`.
 
-Falco 0.45.2 is a DaemonSet, `driver.kind=modern_ebpf`, on both nodes. Startup logged `Loading rules from /etc/falco/falco_rules.yaml | schema validation: ok` and `Opening 'syscall' source with modern BPF probe`. A real alert was emitted: rule `Drop and execute new binary in container`, priority Critical, for `gitea hook` in the Gitea pod during the git push. Alerts go to the Falco container log, which Alloy ships to Loki.
+Falco 0.45.2 is a DaemonSet, `driver.kind=modern_ebpf`, on both nodes. Startup logged `Loading rules from /etc/falco/falco_rules.yaml | schema validation: ok` and `Opening 'syscall' source with modern BPF probe`. A real alert was emitted: rule `Drop and execute new binary in container`, priority Critical, for `gitea hook` in the Gitea pod during the git push. Alerts go to the Falco container log, which Alloy ships to Loki. Grafana dashboard `Falco` queries `{namespace="falco"} |= "Critical"`. That query returned a new Critical alert for `/tmp/review-gitea` in the Gitea pod.
 
-OpenCost queries Mimir. `GET /allocation?window=1d&aggregate=namespace` returned HTTP 200 with a namespace allocation (argocd was the first entry: about 0.095 CPU cores requested over the window). The process logs a permission error on `/var/configs` and keeps its config in memory. That does not stop the allocation API.
+OpenCost queries Mimir. The exporter mounts PVC `opencost-pvc` at `/var/configs` with `fsGroup` 1001. `default.json` is on that volume, and `GET /allocation?window=1d&aggregate=namespace` still returns HTTP 200.
 
 ## What was validated
 
@@ -259,16 +258,12 @@ Re-check with `kubectl -n argocd get applications`.
 
 ## Gaps
 
-- One server and one agent, not two agents. The host cannot spare another 3 GiB VM next to `agent-sandbox`.
-- The 4 GiB server has restarted k3s under memory pressure (available memory dipped under 400 MiB, then recovered, and was about 580 MiB at the last check). The Argo CD application controller was OOMKilled there and now runs on `k3s-agent`. Nothing was left uninstalled. Avoid extra workloads on `k3s-server`. Mimir and Loki prefer `k3s-agent`.
-- `kube-system` is outside the default-deny policy.
-- Node-level image pulls are outside NetworkPolicy.
-- Vault is dev mode (in-memory). Mimir, Loki, and Grafana have no persistent disks.
-- Vault root token and Harbor secretKey are in the git values so sync stays stable.
-- Grafana is 12.3.1, the version chart 10.5.15 ships. Harbor is 2.15.4, the version chart 1.19.4 ships.
+- One server and one agent. There is still no second control-plane node. The host cannot spare another VM next to `agent-sandbox`.
+- The 4 GiB server has restarted k3s under memory pressure. The Argo CD controller, Mimir, Loki, Grafana, and Harbor run on `k3s-agent`. Vault stays on the server with a 1Gi file volume. Avoid extra workloads on `k3s-server`.
+- Node-level image pulls are outside NetworkPolicy. Containerd on the node pulls public images. That was left as-is.
+- Grafana is 12.3.1, the version chart 10.5.15 ships. Harbor is 2.15.4, the version chart 1.19.4 ships. The pinned charts cannot ship Grafana 13 or Harbor 2.15.5.
 - Hubble relay TLS is disabled. Cilium also runs the chart's envoy DaemonSet.
-- Host `/etc/hosts` now has the `lab.local` names. `.local` is not forwarded by systemd-resolved, so a missing hosts line looks like an unknown site.
-- OpenCost does not persist `/var/configs`.
 - The API is slow while Argo CD renders several Helm charts. `make apply` does not wait for every app to become Healthy.
-- Multipass addresses are DHCP. The contract field `address` is `dhcp`; the real IPs are outputs. Imported memory and disk stay as byte counts in state, with `ignore_changes`, so a plan does not stop the VMs to rewrite `4G` or `30G`.
-- VMware and Proxmox modules are real and validate. They have not been applied. Ansible still reads inventory from the Multipass workspace until `scripts/render-inventory.py` is pointed at the other root.
+- Multipass addresses are DHCP. Imported memory and disk stay as byte counts in state, with `ignore_changes`, so a plan does not stop the VMs to rewrite `4G` or `30G`. That ignore list was left in place.
+- VMware and Proxmox modules are real and validate. They have not been applied. Inventory for them is `python3 scripts/render-inventory.py tofu/platforms/vmware` or `tofu/platforms/proxmox`.
+- Moving Harbor onto the agent recreated the registry, Redis, and jobservice volumes, because those disks were bound to `k3s-server`. The database volume was already on the agent and was kept. The old `lab/busybox:lab` tag was on the recreated registry disk.

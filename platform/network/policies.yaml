@@ -428,11 +428,21 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: kube-dns-from-cluster
 spec:
-  description: Every pod may query CoreDNS.
+  description: Every pod may query CoreDNS, and CoreDNS may reach the host resolver for names outside the cluster.
   endpointSelector:
     matchLabels:
       k8s:io.kubernetes.pod.namespace: kube-system
       k8s-app: kube-dns
+  egress:
+    - toEntities:
+        - world
+        - host
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
   ingress:
     - fromEndpoints:
         - matchExpressions:

@@ -24,6 +24,26 @@ server:
       storage "file" {
         path = "/vault/data"
       }
+  extraVolumes:
+    - type: secret
+      name: vault-unseal
+  postStart:
+    - /bin/sh
+    - -c
+    - |
+      export VAULT_ADDR=http://127.0.0.1:8200
+      i=0
+      while [ "$i" -lt 30 ]; do
+        if vault status > /tmp/vault-status 2>&1; then
+          exit 0
+        fi
+        if grep -q Sealed /tmp/vault-status; then
+          vault operator unseal "$(cat /vault/userconfig/vault-unseal/unseal-key)" && exit 0
+        fi
+        i=$((i+1))
+        sleep 2
+      done
+      exit 1
   resources:
     requests:
       cpu: 20m

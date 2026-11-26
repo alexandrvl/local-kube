@@ -53,17 +53,23 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://sample.lab.local/healthz
 | Ansible | pass | second `ansible-playbook ansible/site.yml`: both hosts `changed=0` |
 | Destroy guard | pass | destroy plan is only `k3s-server` and `k3s-agent` (2 to destroy). Guard printed `plan guard ok` and was not applied. `agent-sandbox` stayed Running at `10.114.66.250`. A plan that mentions `agent-sandbox` is refused by `scripts/plan-guard.py` |
 
-## Works, improve later
+## Improvements
 
-- Host names depend on `/etc/hosts` because `.local` never reaches DNS. A name that is not `.local`, or a small DNS resolver on the host, would survive a missing hosts line. The browser does not use CoreDNS, so this is the only path from the laptop.
-- The 4 GiB server has already OOM-killed the Argo CD controller and dropped the API under memory pressure. Keep heavy addons on `k3s-agent`, or add a node when the host has room. A dead API stalls every GitOps sync.
-- Vault is dev mode and Mimir, Loki, and Grafana use empty disks. A pod restart forgets secrets, metrics, and logs. That is acceptable for this lab and wrong if a review needs history after a bounce.
-- `kube-system` is outside the default-deny policy. Hubble and CoreDNS need that exception, and it also means a pod in `kube-system` is not constrained by the team policy.
-- Containerd on the node pulls public images outside NetworkPolicy. Pod egress to the internet is denied; image pulls are not.
-- Imported Multipass memory and disk are byte counts, and `ignore_changes` hides a rewrite to `4G`/`30G`. A real resize in Multipass would also stay invisible to `tofu plan`.
-- `scripts/render-inventory.py` always reads `tofu/`. Pointing it at `tofu/platforms/vmware` or `tofu/platforms/proxmox` is the remaining step before those workspaces can drive Ansible.
-- Falco alerts are in the container log, which Loki can store, but there is no Grafana panel for them. An alert is easy to miss without `kubectl logs`.
-- OpenCost logs a permission error on `/var/configs` and keeps config in memory. The allocation API works; the error is noise and the config is not durable.
-- The Vault root token and the Harbor secret key are in the git values so Argo CD does not reset them. That is fine only while this repo stays private.
-- Grafana is chart app 12.3.1, not upstream 13.3.2. Harbor is chart app 2.15.4, not upstream 2.15.5. Both are current for the charts that are pinned.
-- k3s is started with `--cluster-init`, but there is still one server. The cluster is not actually highly available.
+Checked again on 26 Nov 2026, 14:22 Europe/Tallinn, after the changes below. The cluster stayed up. No VM was destroyed. `agent-sandbox` was still Running at `10.114.66.250`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Host DNS | done | One suffix, `lab.test`. dnsmasq on `127.0.0.1:5354` answers it, and `notinhosts.lab.test` resolves without a hosts line. `curl https://sample.lab.test/healthz` returned 200 with no `--resolve`. Certificate `sample-tls` is Ready for `sample.lab.test`. Old `.local` names were not kept. |
+| Memory | done | Argo CD controller, Mimir, Loki, Grafana, and every Harbor pod are on `k3s-agent`. None of those are on `k3s-server`. No third VM. Vault stays on the server with its small volume. |
+| Persistence | done | Vault file PVC `data-vault-0` on the server. After a pod delete the sample account read `vault-persist-ok`. Loki still returned `persist-proof-1795695586028826315` and Mimir still returned 45 at time `1795695586` after those pods were deleted. Grafana has a 1Gi PVC. |
+| kube-system policy | done | `restricted-baseline` now selects every namespace. `kube-system-platform` and `kube-dns-from-cluster` allow the API, health, Hubble, and DNS, including CoreDNS egress to the host resolver on port 53. `cilium status --brief` printed `OK`. The first cut blocked that upstream query and lookups stalled; the port 53 allow fixed it, so the exemption was not restored. |
+| Inventory | done | `scripts/render-inventory.py` takes a workspace and defaults to `tofu/`. `python3 scripts/render-inventory.py` rewrote the Multipass inventory. VMware and Proxmox were not applied. The commands are in `docs/infra.md`. |
+| Falco panel | done | Dashboard `Falco` in `lab-dashboards`. `{namespace="falco"} \|= "Critical"` returned a new Critical alert for `/tmp/review-gitea`. |
+| OpenCost | done | PVC `opencost-pvc` is mounted at `/var/configs`. `default.json` is owned by uid 1001. Allocation API returned HTTP 200. The permission error is gone from the new pod log. |
+| Secrets in git | done | `platform/vault/values.yaml` has no root token. Harbor uses Secret `harbor-secret-key` and the values file has no `secretKey`. A sync does not render either value. The unseal key and root token are in `credentials/lab-secrets.env` and Secret `vault-unseal`. |
+| Second control-plane node | still open | Left on purpose. The host has no room for another VM, and this pass did not add one. |
+| Public image pulls | still open | Left on purpose. Node containerd still pulls outside NetworkPolicy. |
+| Grafana 13 and Harbor 2.15.5 | still open | The pinned charts ship Grafana 12.3.1 and Harbor 2.15.4. Those charts were not replaced. |
+| Multipass `ignore_changes` | still open | Left on purpose. Dropping it would plan an in-place resize and stop the VMs. |
+
+Harbor’s registry, Redis, and jobservice disks were on `k3s-server`. Pinning those pods to the agent required new volumes. The database volume was already on the agent and was kept. The UI at `https://harbor.lab.test/` returned 200. The previous `lab/busybox:lab` tag was on the disk that had to be recreated.
