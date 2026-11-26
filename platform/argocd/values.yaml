@@ -18,12 +18,15 @@ notifications:
   enabled: false
 controller:
   replicas: 1
+  # The 4G server OOM-killed this process at 512Mi. Keep it on the agent.
+  nodeSelector:
+    kubernetes.io/hostname: k3s-agent
   resources:
     requests:
       cpu: 50m
-      memory: 192Mi
+      memory: 256Mi
     limits:
-      memory: 512Mi
+      memory: 768Mi
 repoServer:
   replicas: 1
   env:

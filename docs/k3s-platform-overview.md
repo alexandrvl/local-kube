@@ -230,20 +230,23 @@ OpenCost queries Mimir. `GET /allocation?window=1d&aggregate=namespace` returned
 
 ## Argo CD status
 
-Most apps were `Synced` / `Healthy` at the last check, including cilium, haproxy, cert-manager, issuers, argocd, gitea, teams, sample, observability, alloy, falco, harbor, vault, opencost, kyverno-policies, kube-state-metrics, and platform-ingress.
+The application controller was OOMKilled on `k3s-server` at a 512Mi limit and its syncs stuck in `Running` across an apiserver restart. `platform/argocd/values.yaml` now pins that StatefulSet to `k3s-agent` and raises the limit to 768Mi. After the move the pod was `1/1` on `k3s-agent`.
 
-These were still reconciling when that list was taken. They were `Healthy` (or not created yet) and a sync was already running:
+`platform` is tracking commit `8cdd863` (the bootstrap and network-policy commit). These apps were `Synced` / `Healthy`: alloy, argocd, cert-manager, falco, gitea, haproxy, issuers, kube-state-metrics, kyverno-policies, opencost, platform-ingress, sample, teams, vault.
 
-- `grafana`, `kyverno`, `node-exporter`: OutOfSync because the first install was a host `helm upgrade` and Argo CD was still applying its own render. Pods were up.
-- `platform`: OutOfSync while it created Application `coredns-custom` and refreshed the Cilium app's `ignoreDifferences`.
-- `network`: added in the docs commit, so it appears after Argo CD pulls that commit.
+Still reconciling when this was written, workloads already running:
+
+- `grafana` and `node-exporter`: sync retrying. Comparison failed while the API was refusing discovery (`failed to discover server resources`). The Grafana Deployment and the node-exporter DaemonSet were `Running` the whole time. Health `Missing` is that failed comparison, not a deleted workload.
+- `kyverno`: retrying because hook Job `kyverno-check-legacy-policies` had been deleted. Admission policies were still loaded and still denying.
+- `cilium`, `harbor`, `observability`: `OutOfSync` / `Healthy`, sync in progress. Cilium's extra diff is the rotated TLS secrets; `ignoreDifferences` is set for those three Secrets.
+- `network` and `coredns-custom`: declared by `platform` and not finished applying.
 
 Re-check with `kubectl -n argocd get applications`.
 
 ## Gaps
 
 - One server and one agent, not two agents. The host cannot spare another 3 GiB VM next to `agent-sandbox`.
-- The 4 GiB server has restarted k3s under memory pressure (available memory dipped under 400 MiB, then recovered to about 1.7 GiB). Nothing was left uninstalled. Avoid extra workloads on `k3s-server`. Mimir and Loki prefer `k3s-agent`.
+- The 4 GiB server has restarted k3s under memory pressure (available memory dipped under 400 MiB, then recovered, and was about 580 MiB at the last check). The Argo CD application controller was OOMKilled there and now runs on `k3s-agent`. Nothing was left uninstalled. Avoid extra workloads on `k3s-server`. Mimir and Loki prefer `k3s-agent`.
 - `kube-system` is outside the default-deny policy.
 - Node-level image pulls are outside NetworkPolicy.
 - Vault is dev mode (in-memory). Mimir, Loki, and Grafana have no persistent disks.
