@@ -4,9 +4,13 @@ on:
     branches: [main]
     paths:
       - "services/team-b/**"
+      - ".gitea/workflows/team-b.yaml"
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: sh
     steps:
       - name: build and push
         env:

@@ -7,7 +7,9 @@ runner:
     - ubuntu-latest:docker://docker:27-cli
 container:
   network: host
-  options: "-v /var/run/docker.sock:/var/run/docker.sock -v /usr/local/share/ca-certificates/lab-platform-ca.crt:/opt/lab-ca.crt:ro"
+  # The docker job already mounts the host socket. A second bind fails with
+  # "Duplicate mount point: /var/run/docker.sock".
+  options: "-v /usr/local/share/ca-certificates/lab-platform-ca.crt:/opt/lab-ca.crt:ro"
   valid_volumes:
     - /var/run/docker.sock
     - /usr/local/share/ca-certificates/lab-platform-ca.crt
