@@ -76,12 +76,12 @@ Harbor’s registry, Redis, and jobservice disks were on `k3s-server`. Pinning t
 
 ## cert-manager Hubble drops
 
-Checked 26 Nov 2026, 14:39 Europe/Tallinn. Hubble on both nodes shows one drop, repeated, and no AUDIT verdicts. Nothing sourced from `cert-manager` is dropped.
+Checked 26 Nov 2026, 14:39 Europe/Tallinn. The only drops were Alloy in `observability` to cert-manager pods, TCP 9402, `POLICY_DENIED`. That is the Prometheus port. Webhook, ACME, cainjector, and leader election were not dropped. Certificates stayed Ready.
 
-`observability/alloy` to `cert-manager` pods, TCP 9402, egress, `POLICY_DENIED`. Port 9402 is the metrics port (`prometheus.io/scrape=true`). `restricted-baseline` selects Alloy and its egress list does not include other namespaces, so the default deny drops the scrape. `allow-same-namespace` in `observability` does not match. The cert-manager ingress side would allow a packet from `observability`; the packet never gets there.
+Allowed 26 Nov 2026, 15:05 Europe/Tallinn, and only that scrape. `alloy-cert-manager-metrics` lets Alloy egress to cert-manager on TCP 9402. `cert-manager-metrics-from-observability` lets cert-manager accept TCP 9402 from `observability`. No other port or namespace was added. `restricted-baseline` is unchanged.
 
-cert-manager is not failing. All three deployments are `1/1`. Every Certificate is Ready, including `platform-ca` and `sample-tls`. No drops of webhook, ACME, cainjector, or leader-election traffic. The policy stays closed.
+A scrape from the Alloy pod returned `certmanager_clock_time_seconds`. A fresh Hubble window on `k3s-agent` had no `DROPPED` flows for `cert-manager`, and the same port was forwarded:
 
 ```text
-Nov 26 12:38:14.228: observability/alloy-fc4ms:49962 <> cert-manager/cert-manager-7fd5ddbf9b-8flc5:9402 policy-verdict:none EGRESS DENIED (TCP Flags: SYN)
+Nov 26 13:07:30.893: observability/alloy-w7mfr:50868 -> cert-manager/cert-manager-7fd5ddbf9b-8flc5:9402 to-overlay FORWARDED (TCP Flags: SYN)
 ```

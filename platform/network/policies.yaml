@@ -160,7 +160,7 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: registry-pulls
 spec:
-  description: Pods may pull from the in-cluster Harbor registry. Public image pulls are done by containerd on the node and are outside NetworkPolicy.
+  description: Pods may pull from the in-cluster Harbor registry. Node containerd reaches Harbor, and only Harbor reaches public registries.
   endpointSelector:
     matchExpressions:
       - key: k8s:io.kubernetes.pod.namespace
@@ -178,6 +178,60 @@ spec:
             - port: "443"
               protocol: TCP
             - port: "5000"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: alloy-cert-manager-metrics
+spec:
+  description: Alloy may scrape cert-manager Prometheus metrics. TCP 9402 only.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: observability
+      app.kubernetes.io/name: alloy
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cert-manager
+      toPorts:
+        - ports:
+            - port: "9402"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: cert-manager-metrics-from-observability
+spec:
+  description: cert-manager accepts metrics scrapes from observability. TCP 9402 only.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: cert-manager
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: observability
+      toPorts:
+        - ports:
+            - port: "9402"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: harbor-proxy-upstream
+spec:
+  description: Harbor is the only image-pull proxy. Its pods may reach public registries. Node processes may not.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: harbor
+  egress:
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP
 ---
 apiVersion: cilium.io/v2
