@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: observability
+  annotations:
+    cert-manager.io/cluster-issuer: platform-ca
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - grafana.lab.local
+      secretName: grafana-tls
+  rules:
+    - host: grafana.lab.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 80

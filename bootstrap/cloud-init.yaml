@@ -1,0 +1,24 @@
+#cloud-config
+# Lab node prep for k3s + Cilium. No packages that would slow first boot.
+write_files:
+  - path: /etc/sysctl.d/99-k3s.conf
+    content: |
+      fs.inotify.max_user_instances = 1024
+      fs.inotify.max_user_watches = 1048576
+      fs.file-max = 2097152
+      net.ipv4.ip_forward = 1
+      net.ipv4.conf.all.forwarding = 1
+      net.ipv6.conf.all.forwarding = 1
+      vm.max_map_count = 262144
+  - path: /etc/modules-load.d/k3s.conf
+    content: |
+      overlay
+      br_netfilter
+      vxlan
+runcmd:
+  - sysctl --system || true
+  - modprobe overlay || true
+  - modprobe br_netfilter || true
+  - modprobe vxlan || true
+  - systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades.service || true
+  - systemctl stop unattended-upgrades || true

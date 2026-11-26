@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lab-dashboards
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+data:
+  cluster.json: |
+    {"uid":"lab-cluster","title":"Cluster","tags":["lab"],"timezone":"browser","schemaVersion":39,"version":1,"refresh":"30s","time":{"from":"now-1h","to":"now"},"panels":[{"id":1,"type":"timeseries","title":"Running pods","datasource":{"type":"prometheus","uid":"mimir"},"gridPos":{"h":8,"w":12,"x":0,"y":0},"targets":[{"refId":"A","expr":"sum(kube_pod_status_phase{phase=\"Running\"})"}]},{"id":2,"type":"timeseries","title":"Node CPU busy percent","datasource":{"type":"prometheus","uid":"mimir"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"targets":[{"refId":"A","expr":"100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"}]}]}
+  hubble.json: |
+    {"uid":"lab-hubble","title":"Hubble","tags":["lab","hubble"],"timezone":"browser","schemaVersion":39,"version":1,"refresh":"30s","time":{"from":"now-1h","to":"now"},"panels":[{"id":1,"type":"timeseries","title":"Hubble flows","datasource":{"type":"prometheus","uid":"mimir"},"gridPos":{"h":8,"w":12,"x":0,"y":0},"targets":[{"refId":"A","expr":"sum(rate(hubble_flows_processed_total[5m]))"}]},{"id":2,"type":"timeseries","title":"Hubble drops","datasource":{"type":"prometheus","uid":"mimir"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"targets":[{"refId":"A","expr":"sum(rate(hubble_drop_total[5m])) by (reason)"}]}]}
+  sample.json: |
+    {"uid":"lab-sample","title":"Sample app","tags":["lab","sample"],"timezone":"browser","schemaVersion":39,"version":1,"refresh":"30s","time":{"from":"now-1h","to":"now"},"panels":[{"id":1,"type":"timeseries","title":"HTTP requests","datasource":{"type":"prometheus","uid":"mimir"},"gridPos":{"h":8,"w":24,"x":0,"y":0},"targets":[{"refId":"A","expr":"sum(rate(http_requests_total{namespace=\"team-a\"}[5m])) by (status)"}]}]}

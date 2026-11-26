@@ -1,0 +1,18 @@
+injector:
+  enabled: false
+server:
+  image:
+    repository: hashicorp/vault
+    tag: "2.2.2"
+  dev:
+    enabled: true
+    devRootToken: "eIfJZaZoEzKy0X4Q1wwmZKQc"
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+ui:
+  enabled: true
+  serviceType: ClusterIP

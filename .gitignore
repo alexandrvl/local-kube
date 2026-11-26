@@ -1,0 +1,6 @@
+credentials/**
+!credentials/.gitkeep
+bootstrap/state.env
+bootstrap/rendered/
+*.kubeconfig
+.DS_Store

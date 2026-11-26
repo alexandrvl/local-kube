@@ -1,0 +1,31 @@
+crds:
+  enabled: true
+  keep: true
+replicaCount: 1
+resources:
+  requests:
+    cpu: 10m
+    memory: 48Mi
+  limits:
+    memory: 256Mi
+webhook:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+cainjector:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      memory: 256Mi
+startupapicheck:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi

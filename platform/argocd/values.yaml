@@ -1,0 +1,51 @@
+global:
+  domain: argocd.lab.local
+configs:
+  params:
+    server.insecure: "true"
+  cm:
+    timeout.reconciliation: 180s
+    admin.enabled: "true"
+dex:
+  enabled: false
+notifications:
+  enabled: false
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 512Mi
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 384Mi
+server:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+applicationSet:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 48Mi
+    limits:
+      memory: 192Mi
+redis:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi

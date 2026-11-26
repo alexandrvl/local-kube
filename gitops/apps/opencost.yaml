@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencost
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://opencost.github.io/opencost-helm-chart
+      chart: opencost
+      targetRevision: 2.5.35
+      helm:
+        valueFiles:
+          - $values/platform/opencost/values.yaml
+    - repoURL: http://gitea.gitea.svc.cluster.local:3000/labadmin/local-kubenrtetes.git
+      targetRevision: main
+      ref: values
+    - repoURL: http://gitea.gitea.svc.cluster.local:3000/labadmin/local-kubenrtetes.git
+      targetRevision: main
+      path: platform/opencost/manifests
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencost
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

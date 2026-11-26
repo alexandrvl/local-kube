@@ -1,0 +1,37 @@
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    certSource: secret
+    secret:
+      secretName: harbor-tls
+  ingress:
+    hosts:
+      core: harbor.lab.local
+    className: haproxy
+    annotations:
+      cert-manager.io/cluster-issuer: platform-ca
+      ingress.kubernetes.io/ssl-redirect: "true"
+externalURL: https://harbor.lab.local
+harborAdminPassword: ""
+existingSecretAdminPassword: harbor-admin
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+secretKey: "8ejWe14ao1gnPGRz"
+trivy:
+  enabled: false
+persistence:
+  enabled: true
+  persistentVolumeClaim:
+    registry:
+      size: 5Gi
+    jobservice:
+      jobLog:
+        size: 1Gi
+    database:
+      size: 1Gi
+    redis:
+      size: 1Gi
+metrics:
+  enabled: false
+exporter:
+  enabled: false

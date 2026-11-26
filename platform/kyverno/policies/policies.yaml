@@ -1,0 +1,61 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-team-app-label
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-app-kubernetes-io-name
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchExpressions:
+                  - key: kubernetes.io/metadata.name
+                    operator: In
+                    values:
+                      - team-a
+                      - team-b
+                      - team-c
+      validate:
+        message: "Pods in team namespaces must set the label app.kubernetes.io/name."
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privileged-teams
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: deny-privileged
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaceSelector:
+                matchExpressions:
+                  - key: kubernetes.io/metadata.name
+                    operator: In
+                    values:
+                      - team-a
+                      - team-b
+                      - team-c
+      validate:
+        message: "Privileged containers are not allowed in team namespaces."
+        foreach:
+          - list: "request.object.spec.containers[]"
+            deny:
+              conditions:
+                all:
+                  - key: "{{ element.securityContext.privileged || false }}"
+                    operator: Equals
+                    value: true

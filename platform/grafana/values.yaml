@@ -1,0 +1,36 @@
+adminUser: admin
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Mimir
+        uid: mimir
+        type: prometheus
+        url: http://mimir.observability.svc.cluster.local:9009/prometheus
+        access: proxy
+        isDefault: true
+      - name: Loki
+        uid: loki
+        type: loki
+        url: http://loki.observability.svc.cluster.local:3100
+        access: proxy
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: observability
+  datasources:
+    enabled: false
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 320Mi
+service:
+  type: ClusterIP

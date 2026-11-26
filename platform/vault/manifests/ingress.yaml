@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vault
+  namespace: vault
+  annotations:
+    cert-manager.io/cluster-issuer: platform-ca
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - vault.lab.local
+      secretName: vault-tls
+  rules:
+    - host: vault.lab.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vault-ui
+                port:
+                  number: 8200

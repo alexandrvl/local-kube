@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: platform-ca
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - argocd.lab.local
+      secretName: argocd-tls
+  rules:
+    - host: argocd.lab.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hubble-ui
+  namespace: kube-system
+  annotations:
+    cert-manager.io/cluster-issuer: platform-ca
+spec:
+  ingressClassName: haproxy
+  tls:
+    - hosts:
+        - hubble.lab.local
+      secretName: hubble-ui-tls
+  rules:
+    - host: hubble.lab.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hubble-ui
+                port:
+                  number: 80

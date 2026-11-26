@@ -1,0 +1,23 @@
+opencost:
+  prometheus:
+    internal:
+      enabled: false
+    external:
+      enabled: true
+      url: http://mimir.observability.svc.cluster.local:9009/prometheus
+  exporter:
+    defaultClusterId: local-lab
+    replicas: 1
+    resources:
+      requests:
+        cpu: 20m
+        memory: 96Mi
+      limits:
+        memory: 384Mi
+  ui:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi

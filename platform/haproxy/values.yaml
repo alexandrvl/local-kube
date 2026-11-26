@@ -1,0 +1,21 @@
+controller:
+  kind: DaemonSet
+  unprivileged: true
+  allowPrivilegedPorts: true
+  ingressClassResource:
+    name: haproxy
+    default: true
+  ingressClass: haproxy
+  service:
+    # Host ports 80 and 443 on every node. No ServiceLB in this cluster.
+    enabled: false
+  daemonset:
+    useHostPort: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  config:
+    ssl-redirect: "false"

@@ -1,0 +1,13 @@
+fullnameOverride: kube-state-metrics
+replicas: 1
+resources:
+  requests:
+    cpu: 10m
+    memory: 48Mi
+  limits:
+    memory: 160Mi
+selfMonitor:
+  enabled: false
+prometheus:
+  monitor:
+    enabled: false
