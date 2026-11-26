@@ -59,15 +59,10 @@ spec:
       labels:
         app.kubernetes.io/name: loki
     spec:
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: ["k3s-agent"]
+      nodeSelector:
+        kubernetes.io/hostname: k3s-agent
+      securityContext:
+        fsGroup: 10001
       containers:
         - name: loki
           image: grafana/loki:3.7.10
@@ -98,7 +93,21 @@ spec:
           configMap:
             name: loki-config
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: loki-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: observability
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
 ---
 apiVersion: v1
 kind: Service

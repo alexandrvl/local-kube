@@ -9,10 +9,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - opencost.lab.local
+        - opencost.lab.test
       secretName: opencost-tls
   rules:
-    - host: opencost.lab.local
+    - host: opencost.lab.test
       http:
         paths:
           - path: /

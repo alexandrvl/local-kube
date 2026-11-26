@@ -1,13 +1,32 @@
 #!/usr/bin/env python3
 """Write ansible/inventory/hosts.yml from `tofu output -json nodes`."""
+import argparse
 import json
 import subprocess
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-nodes = json.loads(subprocess.check_output(
-    ["tofu", "output", "-json", "nodes"], cwd=root / "tofu", text=True
-))
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument(
+    "workspace",
+    nargs="?",
+    default="tofu",
+    help="OpenTofu workspace directory (default: tofu/). Relative paths start at the repo root.",
+)
+args = parser.parse_args()
+workspace = Path(args.workspace)
+if not workspace.is_absolute():
+    workspace = root / workspace
+try:
+    raw = subprocess.check_output(
+        ["tofu", "output", "-json", "nodes"],
+        cwd=workspace,
+        text=True,
+        stderr=subprocess.STDOUT,
+    )
+except subprocess.CalledProcessError as exc:
+    raise SystemExit(f"tofu output failed in {workspace}:\n{exc.output}") from exc
+nodes = json.loads(raw)
 key = root / "credentials" / "lab-ssh"
 servers = {name: node for name, node in nodes.items() if node["role"] == "server"}
 agents = {name: node for name, node in nodes.items() if node["role"] == "agent"}

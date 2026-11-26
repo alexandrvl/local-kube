@@ -9,10 +9,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - grafana.lab.local
+        - grafana.lab.test
       secretName: grafana-tls
   rules:
-    - host: grafana.lab.local
+    - host: grafana.lab.test
       http:
         paths:
           - path: /

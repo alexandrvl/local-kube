@@ -1,3 +1,9 @@
+nodeSelector:
+  kubernetes.io/hostname: k3s-agent
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 1Gi
 adminUser: admin
 admin:
   existingSecret: grafana-admin

@@ -1,5 +1,5 @@
 global:
-  domain: argocd.lab.local
+  domain: argocd.lab.test
 configs:
   params:
     server.insecure: "true"

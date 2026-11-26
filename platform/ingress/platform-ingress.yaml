@@ -9,10 +9,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - argocd.lab.local
+        - argocd.lab.test
       secretName: argocd-tls
   rules:
-    - host: argocd.lab.local
+    - host: argocd.lab.test
       http:
         paths:
           - path: /
@@ -34,10 +34,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - hubble.lab.local
+        - hubble.lab.test
       secretName: hubble-ui-tls
   rules:
-    - host: hubble.lab.local
+    - host: hubble.lab.test
       http:
         paths:
           - path: /

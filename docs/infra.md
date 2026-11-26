@@ -91,14 +91,14 @@ tofu plan
 tofu apply
 ```
 
-Then point the inventory renderer at that root:
+Then render inventory from that workspace. This does not apply it:
 
 ```bash
 cd ../../..
-tofu -chdir=tofu/platforms/vmware output -json nodes > /tmp/nodes.json
+python3 scripts/render-inventory.py tofu/platforms/vmware
 ```
 
-`scripts/render-inventory.py` currently reads `tofu/` (the Multipass workspace). For a real move, change `cwd` in that script to the workspace you applied, or copy its `nodes` output into the same JSON shape. Ansible roles and `gitops/` stay as they are. Do not set `hypervisor` in `tofu/` to anything but `multipass`; that variable is rejected so a switch cannot delete the Multipass VMs from this state.
+`scripts/render-inventory.py` reads `tofu/` when no directory is given. Ansible roles and `gitops/` stay as they are. Do not set `hypervisor` in `tofu/` to anything but `multipass`; that variable is rejected so a switch cannot delete the Multipass VMs from this state.
 
 The vSphere module clones `vmware_template` and sets CPU, memory (MiB parsed from `4G`), and disk (GB parsed from `30G`). `address = "dhcp"` uses the address vSphere reports. A static address is passed through as the contract IP.
 
@@ -112,6 +112,13 @@ export PROXMOX_VE_API_TOKEN='user@pve!lab=secret'
 tofu init
 tofu plan
 tofu apply
+```
+
+Then render inventory from that workspace. This does not apply it:
+
+```bash
+cd ../../..
+python3 scripts/render-inventory.py tofu/platforms/proxmox
 ```
 
 The module clones `proxmox_template_id`, sets cores, dedicated memory, and a scsi0 disk, and uses cloud-init for `dhcp` or the given address plus `ssh_user` and `ssh_public_key`. Provider `bpg/proxmox` 0.124.0 also reads `PROXMOX_VE_ENDPOINT` when the configuration does not set one. This workspace sets `endpoint` from `proxmox_endpoint`.

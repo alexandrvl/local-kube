@@ -52,9 +52,9 @@ spec:
             - name: GITEA__database__PATH
               value: /data/gitea/gitea.db
             - name: GITEA__server__DOMAIN
-              value: gitea.lab.local
+              value: gitea.lab.test
             - name: GITEA__server__ROOT_URL
-              value: https://gitea.lab.local/
+              value: https://gitea.lab.test/
             - name: GITEA__server__LOCAL_ROOT_URL
               value: http://gitea.gitea.svc.cluster.local:3000/
             - name: GITEA__server__HTTP_PORT
@@ -120,10 +120,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - gitea.lab.local
+        - gitea.lab.test
       secretName: gitea-tls
   rules:
-    - host: gitea.lab.local
+    - host: gitea.lab.test
       http:
         paths:
           - path: /

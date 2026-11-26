@@ -9,10 +9,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - vault.lab.local
+        - vault.lab.test
       secretName: vault-tls
   rules:
-    - host: vault.lab.local
+    - host: vault.lab.test
       http:
         paths:
           - path: /

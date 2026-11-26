@@ -1,3 +1,5 @@
+podSecurityContext:
+  fsGroup: 1001
 opencost:
   prometheus:
     internal:
@@ -8,6 +10,12 @@ opencost:
   exporter:
     defaultClusterId: local-lab
     replicas: 1
+    persistence:
+      enabled: true
+      mountPath: /var/configs
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 1Gi
     resources:
       requests:
         cpu: 20m

@@ -5,10 +5,10 @@ metadata:
   namespace: kube-system
 data:
   # The stock Corefile already loads the hosts plugin, which can appear only once.
-  # Answer every lab.local name with the server node, where HAProxy listens.
+  # Answer every lab.test name with the server node, where HAProxy listens.
   lab.override: |
-    template IN A lab.local {
-      match ^.*\.lab\.local\.$
+    template IN A lab.test {
+      match ^.*\.lab\.test\.$
       answer "{{ .Name }} 60 IN A 10.114.66.182"
       fallthrough
     }

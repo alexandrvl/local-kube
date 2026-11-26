@@ -67,15 +67,10 @@ spec:
       labels:
         app.kubernetes.io/name: mimir
     spec:
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              preference:
-                matchExpressions:
-                  - key: kubernetes.io/hostname
-                    operator: In
-                    values: ["k3s-agent"]
+      nodeSelector:
+        kubernetes.io/hostname: k3s-agent
+      securityContext:
+        fsGroup: 10001
       containers:
         - name: mimir
           image: grafana/mimir:3.2.6
@@ -110,7 +105,21 @@ spec:
           configMap:
             name: mimir-config
         - name: data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: mimir-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mimir-data
+  namespace: observability
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
 ---
 apiVersion: v1
 kind: Service

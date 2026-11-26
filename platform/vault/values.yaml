@@ -5,8 +5,25 @@ server:
     repository: hashicorp/vault
     tag: "2.2.2"
   dev:
+    enabled: false
+  nodeSelector:
+    kubernetes.io/hostname: k3s-server
+  dataStorage:
     enabled: true
-    devRootToken: "eIfJZaZoEzKy0X4Q1wwmZKQc"
+    size: 1Gi
+    storageClass: local-path
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+      listener "tcp" {
+        tls_disable = 1
+        address = "[::]:8200"
+        cluster_address = "[::]:8201"
+      }
+      storage "file" {
+        path = "/vault/data"
+      }
   resources:
     requests:
       cpu: 20m

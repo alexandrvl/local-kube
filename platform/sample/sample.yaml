@@ -65,10 +65,10 @@ spec:
   ingressClassName: haproxy
   tls:
     - hosts:
-        - sample.lab.local
+        - sample.lab.test
       secretName: sample-tls
   rules:
-    - host: sample.lab.local
+    - host: sample.lab.test
       http:
         paths:
           - path: /

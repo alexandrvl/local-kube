@@ -3,13 +3,8 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: restricted-baseline
 spec:
-  description: Default deny for every namespace except kube-system, with platform exceptions.
-  endpointSelector:
-    matchExpressions:
-      - key: k8s:io.kubernetes.pod.namespace
-        operator: NotIn
-        values:
-          - kube-system
+  description: Default deny for every namespace, including kube-system. kube-system-platform adds the explicit allows.
+  endpointSelector: {}
   ingress:
     - fromEntities:
         - host
@@ -402,6 +397,67 @@ spec:
     - toEndpoints:
         - {}
 
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: kube-system-platform
+spec:
+  description: kube-system may talk to the API, the node, health checks, and the ingress controller. Hubble UI is in this namespace.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: kube-system
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+        - health
+        - kube-apiserver
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress
+  egress:
+    - toEntities:
+        - host
+        - remote-node
+        - health
+        - kube-apiserver
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: kube-dns-from-cluster
+spec:
+  description: Every pod may query CoreDNS.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: kube-system
+      k8s-app: kube-dns
+  ingress:
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: kube-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - {}
+  egress:
+    - toEndpoints:
+        - {}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

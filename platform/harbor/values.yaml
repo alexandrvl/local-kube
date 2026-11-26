@@ -7,16 +7,37 @@ expose:
       secretName: harbor-tls
   ingress:
     hosts:
-      core: harbor.lab.local
+      core: harbor.lab.test
     className: haproxy
     annotations:
       cert-manager.io/cluster-issuer: platform-ca
       ingress.kubernetes.io/ssl-redirect: "true"
-externalURL: https://harbor.lab.local
+externalURL: https://harbor.lab.test
 harborAdminPassword: ""
 existingSecretAdminPassword: harbor-admin
 existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
-secretKey: "8ejWe14ao1gnPGRz"
+# secretKey lives in the harbor-secret-key Secret, not in git.
+existingSecretSecretKey: harbor-secret-key
+portal:
+  nodeSelector:
+    kubernetes.io/hostname: k3s-agent
+core:
+  nodeSelector:
+    kubernetes.io/hostname: k3s-agent
+jobservice:
+  nodeSelector:
+    kubernetes.io/hostname: k3s-agent
+registry:
+  nodeSelector:
+    kubernetes.io/hostname: k3s-agent
+database:
+  internal:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-agent
+redis:
+  internal:
+    nodeSelector:
+      kubernetes.io/hostname: k3s-agent
 trivy:
   enabled: false
 persistence:
