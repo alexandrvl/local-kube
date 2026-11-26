@@ -136,10 +136,10 @@ multipass exec k3s-server -- sudo cat /etc/rancher/k3s/k3s.yaml | sed "s/127.0.0
 chmod 600 "${ROOT}/credentials/kubeconfig"
 export KUBECONFIG="${ROOT}/credentials/kubeconfig"
 
-helm repo add cilium https://helm.cilium.io >/dev/null
-helm repo add jetstack https://charts.jetstack.io >/dev/null
-helm repo add haproxytech https://haproxytech.github.io/helm-charts >/dev/null
-helm repo add argo https://argoproj.github.io/argo-helm >/dev/null
+helm repo add cilium https://helm.cilium.io >/dev/null 2>&1 || true
+helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || true
+helm repo add haproxytech https://haproxytech.github.io/helm-charts >/dev/null 2>&1 || true
+helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
 helm repo update >/dev/null
 
 if ! helm status cilium -n kube-system >/dev/null 2>&1; then
@@ -178,6 +178,9 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.pas
 chmod 600 "${ROOT}/credentials/argocd-admin-password"
 
 kubectl apply -f "${ROOT}/platform/ingress/platform-ingress.yaml"
+for ns in observability vault harbor kyverno falco opencost; do
+  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+done
 kubectl apply -f "${ROOT}/platform/network/policies.yaml"
 
 kubectl -n gitea port-forward svc/gitea 3000:3000 >/tmp/gitea-port-forward.log 2>&1 &
