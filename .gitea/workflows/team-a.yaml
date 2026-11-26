@@ -19,7 +19,9 @@ jobs:
           HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
         run: |
           set -eu
-          apk add --no-cache git
+          apk add --no-cache git ca-certificates
+          cp /opt/lab-ca.crt /usr/local/share/ca-certificates/lab-platform-ca.crt
+          update-ca-certificates
           git -c http.sslCAInfo=/opt/lab-ca.crt clone --depth 1 --branch main \
             "https://x-access-token:${GITHUB_TOKEN}@gitea.lab.test/labadmin/local-kubenrtetes.git" src
           cd src

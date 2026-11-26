@@ -169,7 +169,7 @@ Each team runs KrakenD in front of its own API. The API has no Ingress of its ow
 
 Delivery teams copy tokens from the Vault UI. The userpass users are `team-a`, `team-b`, and `team-c`. Their passwords are `VAULT_UI_TEAM_A`, `VAULT_UI_TEAM_B`, and `VAULT_UI_TEAM_C` in `credentials/lab-secrets.env`. Customers do not get a Vault login.
 
-Gitea Actions builds the service images. The runner is `gitea/act_runner` on the host, with the host Docker socket, because the k3s nodes have containerd only. Its job options mount the platform CA and do not mount the socket again. Images land in private Harbor projects `team-a`, `team-b`, and `team-c`. The controller image is `lab/token-controller`. Pods run on `k3s-agent`.
+Gitea Actions builds the service images. The runner is `gitea/act_runner` on the host, with the host Docker socket, because the k3s nodes have containerd only. Its job options mount the platform CA. The job adds that CA to the Alpine trust store, because the Docker 27 client checks Harbor itself. The options do not mount the socket again. Images land in private Harbor projects `team-a`, `team-b`, and `team-c`. The controller image is `lab/token-controller`. Pods run on `k3s-agent`.
 
 ## Vault ingestion
 
