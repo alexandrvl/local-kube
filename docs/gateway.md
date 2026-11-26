@@ -135,7 +135,7 @@ Callers send `User` (the customer id) and `Token` (the raw JWT, not `Bearer`). K
 | `jti` | a new UUID for that issuance |
 | `kid` | in the JWT header, naming the public key |
 
-`propagate_claims` is `[["sub", "X-Customer"]]`. The gateway writes `sub` into `X-Customer` and replaces a client-supplied value. The CEL check then requires one `User`, one `X-Customer`, and those two equal. `input_headers` lists both, which is what makes them visible to CEL and to the backend. The service reads `X-Customer` and ignores a customer id in the JSON body. On physical trading, a POST with `User: acme`, a valid acme token, and `X-Customer: globex` was stored with owner `acme`.
+`propagate_claims` is `[["sub", "X-Customer"]]`. The gateway writes `sub` into `X-Customer` and replaces a client-supplied value. The CEL check then requires one `User`, one `X-Customer`, and those two equal. `input_headers` lists `User`, `X-Customer`, and `Token`. The first two are what CEL and the ownership check see. `Token` is forwarded so the service can read the `jti` when a customer is revoked. The service reads `X-Customer` for ownership and ignores a customer id in the JSON body. On physical trading, a POST with `User: acme`, a valid acme token, and `X-Customer: globex` was stored with owner `acme`.
 
 A missing `Token` is HTTP 401 from KrakenD. A `User` that does not match `sub` fails CEL. KrakenD answers HTTP 500 with body `Error #01: request aborted by evaluator #0`. The service is not called in either case. A time-series token sent to `https://energy-prices.trading.lab.test` is HTTP 401. The gateways do not share a JWKS, and the audiences differ.
 
@@ -156,6 +156,14 @@ The signing certificate is a different clock. It lasts a year, and cert-manager 
 On 26 November 2026 at 21:56 Europe/Tallinn the team-a signer was renewed with the same Issuing condition cert-manager sets for a manual renewal. The controller logged `signer rotated` from `V7yLY1C24CV-NzQvOGKtoTX1t-Wk-atwK3q-Q1rhyMs` to `Lg72Hh7P8icVFya2sbB_tBaUNTAAwlliebgKe6wmFrE` and published two keys. The acme token from before the renewal returned 200, and a token signed by the new key returned 200. After the tokens that named the old `kid` expired, the controller logged `signer dropped`, JWKS had only the new key, the old token returned 401, and the new token returned 200. `signer-observed` contains `tls.crt` and not the private key. Team B and team C were not renewed.
 
 On 26 November 2026 the physical-trading acme token was rotated without restarting KrakenD. The previous token expired at 18:47:49 Europe/Tallinn. The replacement expired at 18:49:21 Europe/Tallinn. During the overlap, POST `/time-series` returned 200 for both strings. After 18:47:49 the previous string returned 401 and the current string returned 200.
+
+## Revoke one customer
+
+Removing the signing certificate would reject every customer of that team. Revocation does not touch the key. Set `spec.revoked: true` on that one `CustomerToken`. The controller writes the current `jti` and the previous `jti` into ConfigMap `gateway-revoked` and deletes the Vault strings. It does not sign a replacement. Other `CustomerToken` objects are left as they are, including the same customer on another API.
+
+The API pod mounts that ConfigMap at `/etc/revoked` and reads it on each request. `revoked()` in the three `app.py` files returns 401 when the `jti` inside the forwarded `Token` is listed. A token that is not listed is handled as before. KrakenD still has one backend and `output_encoding: no-op`, so the 401 is the status the caller sees.
+
+The `jti` stays on the list until its own `expiresAt`. Setting `spec.revoked` back to false makes the controller sign a new token. The old strings stay denied until they expire.
 
 ## Where the token string lives
 
@@ -236,7 +244,7 @@ Add this object to the `endpoints` array. It is the existing GET block with the 
 {
   "endpoint": "/time-series/{type}/latest",
   "method": "GET",
-  "input_headers": ["User", "X-Customer"],
+  "input_headers": ["User", "X-Customer", "Token"],
   "output_encoding": "no-op",
   "extra_config": {
     "auth/validator": {

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Customer records. The first caller to write a customer name owns that record."""
 
+import base64
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -23,10 +24,29 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def revoked(self):
+        token = self.headers.get("Token") or ""
+        parts = token.split(".")
+        if len(parts) < 2:
+            return False
+        try:
+            pad = "=" * (-len(parts[1]) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(parts[1] + pad))
+            denied = json.loads(open("/etc/revoked/revoked.json").read()).get("jti") or {}
+        except (OSError, ValueError, json.JSONDecodeError):
+            return False
+        jti = payload.get("jti")
+        if not isinstance(jti, str) or jti not in denied:
+            return False
+        self.send_json(401, {"error": "revoked"})
+        return True
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if path == "/healthz":
             self.send_json(200, {"ok": True})
+            return
+        if self.revoked():
             return
         prefix = "/customers/"
         if path.startswith(prefix) and path != prefix:
@@ -44,6 +64,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(404, {"error": "not found"})
 
     def do_POST(self):
+        if self.revoked():
+            return
         path = self.path.split("?", 1)[0]
         if path != "/customers":
             self.send_json(404, {"error": "not found"})

@@ -26,6 +26,7 @@ SIGNER_SECRET = os.environ["SIGNER_SECRET"]
 PREVIOUS_SECRET = os.environ.get("PREVIOUS_SECRET", "signer-previous")
 OBSERVED_SECRET = os.environ.get("OBSERVED_SECRET", "signer-observed")
 JWKS_CONFIGMAP = os.environ["JWKS_CONFIGMAP"]
+REVOKED_CONFIGMAP = os.environ.get("REVOKED_CONFIGMAP", "gateway-revoked")
 ISSUER = os.environ["ISSUER"]
 INTERVAL = int(os.environ.get("INTERVAL_SECONDS", "10"))
 
@@ -247,6 +248,61 @@ def publish_jwks(namespace, certs):
     log(f"jwks updated keys={len(certs)}")
 
 
+def read_revoked(namespace):
+    code, body = kube("GET", f"/api/v1/namespaces/{namespace}/configmaps/{REVOKED_CONFIGMAP}")
+    if code == 404:
+        return {}, 404, None
+    if code != 200:
+        raise RuntimeError(f"revocation read failed: {code}")
+    raw = (body.get("data") or {}).get("revoked.json") or '{"jti":{}}'
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = {}
+    return data.get("jti") or {}, 200, body
+
+
+def live_revocations(items, existing, now):
+    kept = {}
+    for jti, expires in (existing or {}).items():
+        if isinstance(jti, str) and isinstance(expires, str) and parse_stamp(expires) > now:
+            kept[jti] = expires
+    for item in items:
+        if not (item.get("spec") or {}).get("revoked"):
+            continue
+        status = item.get("status") or {}
+        for meta in (status, status.get("previous") or {}):
+            jti = meta.get("jti")
+            expires = meta.get("expiresAt")
+            if isinstance(jti, str) and isinstance(expires, str) and parse_stamp(expires) > now:
+                kept[jti] = expires
+    return kept
+
+
+def publish_revoked(namespace, items):
+    existing, code, current = read_revoked(namespace)
+    kept = live_revocations(items, existing, int(time.time()))
+    document = json.dumps({"jti": kept}, separators=(",", ":"), sort_keys=True)
+    if code == 404 and not kept:
+        return
+    if code == 200 and (current.get("data") or {}).get("revoked.json") == document:
+        return
+    payload = {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {"name": REVOKED_CONFIGMAP, "namespace": namespace},
+        "data": {"revoked.json": document},
+    }
+    if code == 404:
+        status, detail = kube("POST", f"/api/v1/namespaces/{namespace}/configmaps", payload)
+    else:
+        payload["metadata"]["resourceVersion"] = current["metadata"]["resourceVersion"]
+        status, detail = kube("PUT", f"/api/v1/namespaces/{namespace}/configmaps/{REVOKED_CONFIGMAP}", payload)
+    if status not in (200, 201):
+        raise RuntimeError(f"revocation write failed: {status} {detail}")
+    log(f"revocations updated count={len(kept)}")
+
+
 def vault_path(api, customer):
     return f"/v1/secret/data/teams/{TEAM}/tokens/{api.strip('/')}/{customer}"
 
@@ -311,6 +367,15 @@ def reconcile_token(namespace, token, obj, private_pem, cert):
     spec = obj["spec"]
     name = obj["metadata"]["name"]
     status = dict(obj.get("status") or {})
+    if spec.get("revoked"):
+        stored = read_vault(token, spec["api"], spec["customer"])
+        if stored["current"] or stored["previous"]:
+            write_vault(token, spec["api"], spec["customer"], "", "")
+        if not status.get("revoked"):
+            status["revoked"] = True
+            patch_status(namespace, name, status)
+            log(f"revoked {name} jti={status.get('jti', '')}")
+        return
     ttl = parse_duration(spec["ttl"])
     overlap = parse_duration(spec["overlap"])
     if overlap >= ttl:
@@ -334,6 +399,7 @@ def reconcile_token(namespace, token, obj, private_pem, cert):
     signed, payload = sign_token(private_pem, cert, spec["customer"], spec["api"], ttl)
     write_vault(token, spec["api"], spec["customer"], signed, previous_token)
     new_status = status_meta(payload, cert)
+    new_status["revoked"] = False
     if previous_meta:
         new_status["previous"] = previous_meta
     patch_status(namespace, name, new_status)
@@ -356,6 +422,7 @@ def reconcile():
     items = body.get("items", [])
     certs = retain_signer(namespace, cert_pem, items)
     publish_jwks(namespace, certs)
+    publish_revoked(namespace, items)
     token = vault_login()
     for item in items:
         reconcile_token(namespace, token, item, key_pem, certs[0])

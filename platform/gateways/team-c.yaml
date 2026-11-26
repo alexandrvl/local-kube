@@ -111,6 +111,15 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          volumeMounts:
+            - name: revoked
+              mountPath: /etc/revoked
+              readOnly: true
+      volumes:
+        - name: revoked
+          configMap:
+            name: gateway-revoked
+            optional: true
 ---
 apiVersion: v1
 kind: Service
@@ -222,7 +231,7 @@ data:
         {
           "endpoint": "/customers",
           "method": "POST",
-          "input_headers": ["User", "X-Customer"],
+          "input_headers": ["User", "X-Customer", "Token"],
           "output_encoding": "no-op",
           "extra_config": {
             "auth/validator": {
@@ -255,7 +264,7 @@ data:
         {
           "endpoint": "/customers/{name}",
           "method": "GET",
-          "input_headers": ["User", "X-Customer"],
+          "input_headers": ["User", "X-Customer", "Token"],
           "output_encoding": "no-op",
           "extra_config": {
             "auth/validator": {
@@ -419,6 +428,8 @@ spec:
               value: signer-observed
             - name: JWKS_CONFIGMAP
               value: gateway-jwks
+            - name: REVOKED_CONFIGMAP
+              value: gateway-revoked
             - name: ISSUER
               value: https://customers.customer.lab.test
           resources:
