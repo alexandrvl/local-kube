@@ -432,6 +432,8 @@ spec:
               value: gateway-revoked
             - name: ISSUER
               value: https://customers.customer.lab.test
+            - name: RESYNC_SECONDS
+              value: "600"
           resources:
             requests:
               cpu: 10m
