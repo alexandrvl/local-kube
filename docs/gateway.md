@@ -26,6 +26,83 @@ This file is the whole argument. Each section says what was decided and what the
 | CA `lab-platform-ca` | `platform/issuers/issuers.yaml` |
 | `docker.io` rewritten to Harbor | `ansible/roles/registry_proxy/files/registries.yaml` |
 
+## Architecture
+
+Three hostnames, three KrakenD processes, three private APIs. HAProxy is the only thing a customer can reach. The Python service has no Ingress.
+
+```mermaid
+flowchart LR
+  customer[Customer]
+  hap[HAProxy]
+  customer -->|HTTPS, Host header| hap
+  hap --> gwa[KrakenD team-a]
+  hap --> gwb[KrakenD team-b]
+  hap --> gwc[KrakenD team-c]
+  gwa --> apia[timeseries]
+  gwb --> apib[prices]
+  gwc --> apic[customers-api]
+```
+
+A call that is allowed looks like this. The sample is physical trading. The other two hosts are the same shape with their own audience.
+
+```mermaid
+sequenceDiagram
+  participant C as Customer
+  participant H as HAProxy
+  participant K as KrakenD
+  participant S as timeseries
+  C->>H: POST /time-series, User and Token
+  H->>K: host physical-trading.trading.lab.test
+  K->>S: GET /.well-known/jwks.json, only if the 60s cache is cold
+  S-->>K: public keys
+  K->>K: check signature, aud, iss, then set X-Customer from sub
+  K->>S: POST /time-series, X-Customer
+  S-->>C: 200, 404, or 409
+```
+
+A missing token stops at KrakenD. The service is not called. A second caller who already passed the gateway can still get 409 or 404 from the service.
+
+Issuance does not go through the customer path. The controller is the only writer.
+
+```mermaid
+flowchart TB
+  git[CustomerToken in Git]
+  argo[Argo CD]
+  ctl[token-controller]
+  cert[signer Secret]
+  vault[Vault current and previous]
+  cm[ConfigMap gateway-jwks]
+  api[API pod reads the ConfigMap]
+  krd[KrakenD fetches the API]
+  git --> argo --> ctl
+  cert --> ctl
+  ctl --> vault
+  ctl --> cm --> api --> krd
+```
+
+`status` on the `CustomerToken` gets `jti`, `kid`, and expiry. The token string stops at Vault. During a signing-key change the controller would add the previous certificate to the same ConfigMap. That change has not been run. Token rotation does not change the ConfigMap, which is why both tokens work without a KrakenD restart.
+
+## Who serves the public JWKS
+
+The public document has to exist. A customer, or anyone they ask to verify a token, fetches `https://<gateway-host>/.well-known/jwks.json` with no token. That URL is on the gateway host. It is not an argument for giving the Python service an Ingress.
+
+What the backend does today is narrower. `serve_jwks` in each `app.py` reads `/etc/jwks/jwks.json`, which is the ConfigMap the controller wrote. The gateway route for that path has no `auth/validator` and proxies to the Service. KrakenD's own check uses `jwk_url` `http://timeseries:8080/.well-known/jwks.json` (and the matching URL in the other namespaces), with `disable_jwk_security` because that hop is cluster HTTP. The 60 second cache is what picks up a new key without restarting KrakenD.
+
+KrakenD 3 can validate without that hop. `auth/validator` accepts `jwk_local_path` instead of `jwk_url`. The file must be a JWK Set, `{"keys":[...]}`, and the JWT header `kid` must match a key in it. The cache flags apply to a URL, not to a local file. The docs do not describe the process noticing that the file changed, so a signing-key rotation would need the gateway to reload. Token rotation would not, because the public key stays the same. Source: KrakenD JWT validation, documented for the v3 schema this lab runs as config `version` 4.
+
+Serving that file to the customer is a different feature. `backend/static-filesystem` and `server/static-filesystem` read a directory and follow later writes. Both are Enterprise, and this lab runs Community `docker.io/library/krakend:3.0.5`. Community can embed a fixed document with the static proxy, but that document lives in `krakend.json`. The gateway mounts that file with `subPath`, so it does not see a later edit until the pod is recreated. The controller would also have to rewrite the gateway config, which it does not do. It writes ConfigMap `gateway-jwks`.
+
+So the split stays:
+
+| Question | Answer |
+| --- | --- |
+| Must the API have a public Ingress for JWKS? | No. The public URL is the gateway. `api-from-gateway` keeps HAProxy off the API pod. |
+| Can the gateway validate from a file it mounts? | Yes, with `jwk_local_path`. A new signing key is not a documented live reload. |
+| Can this Community gateway publish a file that changes? | No. The file server that updates with the ConfigMap is Enterprise. |
+| What should keep originating the document? | The API, because it already mounts `gateway-jwks` as a directory and kubelet refreshes that directory. The gateway only publishes it. |
+
+Moving validation to `jwk_local_path` and leaving the public route proxied would duplicate the file on two pods and still need the API for the public URL. That is not a simpler system. The running choice is the one that matches Community: the controller writes the keys, the API holds the current file, the gateway is the only public copy and the only caller the network policy allows.
+
 ## One KrakenD per team
 
 Each team runs its own KrakenD in its own namespace. Team A cannot edit team B's gateway. A shared process was rejected because one config, one JWKS, and one outage would then cover every API. A mistake in that shared config could make team A's signing key verify a token on team C. Separate processes keep the audience, the signing key, and the failure inside the team that owns the API.
@@ -86,7 +163,7 @@ Reusing the TLS key would tie token validity to HTTPS renewal, and anyone who ca
 
 Later, the same `Certificate` can point `issuerRef` at an organisation issuer. The token shape does not change: `kid` still names the public key in that gateway's JWKS, and the private key still stays in the cert-manager Secret. The Role `token-controller` in the team manifest may `get` only that Secret and a Secret named `signer-previous`. The delivery team and the customer never see the private key.
 
-JWKS is the public half. `publish_jwks` writes ConfigMap `gateway-jwks`, which is not in Git. The API volume mounts it at `/etc/jwks` and is `optional: true`, so the pod can start before the first write. `serve_jwks` returns `{"keys":[]}` when the file is missing. `kid_of` is the SHA-256 of the certificate's Subject Public Key Info, base64url, with the padding removed. If `signer-previous` exists, its certificate is appended to the document. KrakenD caches that document and does not restart when it changes.
+JWKS is the public half. `publish_jwks` writes ConfigMap `gateway-jwks`, which is not in Git. The API volume mounts it at `/etc/jwks` and is `optional: true`, so the pod can start before the first write. `serve_jwks` returns `{"keys":[]}` when the file is missing. `kid_of` is the SHA-256 of the certificate's Subject Public Key Info, base64url, with the padding removed. If `signer-previous` exists, its certificate is appended to the document. KrakenD caches that document and does not restart when it changes. The gateway publishes the document. The API does not have a public JWKS Ingress. Why that split stays, on Community KrakenD, is in "Who serves the public JWKS" above.
 
 ## Token rotation and signing-key rotation
 
