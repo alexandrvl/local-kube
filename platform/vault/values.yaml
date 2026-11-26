@@ -47,6 +47,8 @@ server:
   extraVolumes:
     - type: secret
       name: vault-unseal
+    - type: secret
+      name: vault-ui
     - type: configMap
       name: vault-auth
   postStart:
@@ -81,6 +83,40 @@ server:
         audience="https://kubernetes.default.svc.cluster.local" \
         policies=team-b \
         ttl=1h
+      vault policy write team-c /vault/userconfig/vault-auth/team-c.hcl
+      vault policy write team-a-issuer /vault/userconfig/vault-auth/team-a-issuer.hcl
+      vault policy write team-b-issuer /vault/userconfig/vault-auth/team-b-issuer.hcl
+      vault policy write team-c-issuer /vault/userconfig/vault-auth/team-c-issuer.hcl
+      vault write auth/kubernetes/role/team-c \
+        bound_service_account_names=team-c \
+        bound_service_account_namespaces=team-c \
+        audience="https://kubernetes.default.svc.cluster.local" \
+        policies=team-c \
+        ttl=1h
+      vault write auth/kubernetes/role/team-a-issuer \
+        bound_service_account_names=token-controller \
+        bound_service_account_namespaces=team-a \
+        audience="https://kubernetes.default.svc.cluster.local" \
+        policies=team-a-issuer \
+        ttl=1h
+      vault write auth/kubernetes/role/team-b-issuer \
+        bound_service_account_names=token-controller \
+        bound_service_account_namespaces=team-b \
+        audience="https://kubernetes.default.svc.cluster.local" \
+        policies=team-b-issuer \
+        ttl=1h
+      vault write auth/kubernetes/role/team-c-issuer \
+        bound_service_account_names=token-controller \
+        bound_service_account_namespaces=team-c \
+        audience="https://kubernetes.default.svc.cluster.local" \
+        policies=team-c-issuer \
+        ttl=1h
+      vault auth enable userpass >/tmp/userpass-enable 2>&1 || true
+      if [ -f /vault/userconfig/vault-ui/team-a ]; then
+        vault write auth/userpass/users/team-a password="$(cat /vault/userconfig/vault-ui/team-a)" policies=team-a
+        vault write auth/userpass/users/team-b password="$(cat /vault/userconfig/vault-ui/team-b)" policies=team-b
+        vault write auth/userpass/users/team-c password="$(cat /vault/userconfig/vault-ui/team-c)" policies=team-c
+      fi
   resources:
     requests:
       cpu: 20m

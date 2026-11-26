@@ -76,6 +76,7 @@ Pinned in `versions/pins.env` and `versions/charts.env`.
 | Kyverno | chart 3.10.0, app v1.20.0 |
 | Falco | chart 9.2.2, app 0.45.2, `modern_ebpf` |
 | OpenCost | chart 2.5.35, app 1.121.5 |
+| KrakenD | `docker.io/library/krakend:3.0.5` |
 | sample | `ghcr.io/stefanprodan/podinfo:6.17.0` |
 
 Grafana stays on chart 10.5.15. The index at `https://grafana.github.io/helm-charts` has no appVersion 13. A community chart that ships Grafana 13 changes the admin-password file and the image layout, so it is not a pin. Harbor stays on chart 1.19.4. `https://helm.goharbor.io` has no 2.15.5 chart, and pinning those images makes Harbor pull its own database through the proxy while the database is down.
@@ -153,6 +154,22 @@ On the host, container `lab-dns` (dnsmasq) mounts `platform/dns/lab-test.conf` a
 Git remote used by Argo CD: `http://gitea.gitea.svc.cluster.local:3000/labadmin/local-kubenrtetes.git`. The host remote `origin` is `http://127.0.0.1:3000/labadmin/local-kubenrtetes.git` and only works while `kubectl -n gitea port-forward svc/gitea 3000:3000` is running.
 
 `gitops/root.yaml` is Application `platform`. It syncs `gitops/apps/` with prune and selfHeal. Repo server parallelism is 1.
+
+## Team API gateways
+
+Each team runs KrakenD in front of its own API. The API has no Ingress of its own. Callers send `User` and `Token`. `Token` is a JWT. `aud` is the API id, and `sub` must match `User`. KrakenD copies `sub` into `X-Customer`. The service uses that caller for ownership checks. A time-series type, a price, or a customer name already owned by someone else is rejected.
+
+| API | URL | API id |
+| --- | --- | --- |
+| Physical trading time series | https://physical-trading.trading.lab.test/time-series | `physical-trading/time-series` |
+| Energy prices | https://energy-prices.trading.lab.test/prices | `energy-prices` |
+| Customers | https://customers.customer.lab.test/customers | `customers` |
+
+`CustomerToken` objects live in the team namespace. A controller signs them with that gateway's cert-manager Certificate, which is separate from the TLS certificate, and writes the token string to `secret/teams/<team>/tokens/<api>/<customer>`. The object status stores `jti`, `kid`, and expiry. The lab objects use `ttl: 3m` and `overlap: 90s` so both tokens can be observed in one run. The controller also accepts the agreed `720h` and `168h` schedule.
+
+Delivery teams copy tokens from the Vault UI. The userpass users are `team-a`, `team-b`, and `team-c`. Their passwords are `VAULT_UI_TEAM_A`, `VAULT_UI_TEAM_B`, and `VAULT_UI_TEAM_C` in `credentials/lab-secrets.env`. Customers do not get a Vault login.
+
+Gitea Actions builds the service images. The runner uses the host Docker socket because the k3s nodes have containerd only. Images land in private Harbor projects `team-a`, `team-b`, and `team-c`. The controller image is `lab/token-controller`. Pods run on `k3s-agent`.
 
 ## Vault ingestion
 

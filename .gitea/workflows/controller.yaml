@@ -1,0 +1,24 @@
+name: token controller image
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/controller/**"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: build and push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          set -eu
+          apk add --no-cache git
+          git -c http.sslCAInfo=/opt/lab-ca.crt clone --depth 1 --branch main \
+            "https://x-access-token:${GITHUB_TOKEN}@gitea.lab.test/labadmin/local-kubenrtetes.git" src
+          cd src
+          echo "$HARBOR_PASSWORD" | docker login harbor.lab.test -u "$HARBOR_USERNAME" --password-stdin
+          docker build -f services/controller/Dockerfile -t harbor.lab.test/lab/token-controller:current services/controller
+          docker push harbor.lab.test/lab/token-controller:current

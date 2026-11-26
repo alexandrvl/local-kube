@@ -1,0 +1,13 @@
+log:
+  level: info
+runner:
+  file: /data/.runner
+  capacity: 1
+  labels:
+    - ubuntu-latest:docker://docker:27-cli
+container:
+  network: host
+  options: "-v /var/run/docker.sock:/var/run/docker.sock -v /usr/local/share/ca-certificates/lab-platform-ca.crt:/opt/lab-ca.crt:ro"
+  valid_volumes:
+    - /var/run/docker.sock
+    - /usr/local/share/ca-certificates/lab-platform-ca.crt

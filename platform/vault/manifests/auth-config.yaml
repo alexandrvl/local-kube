@@ -8,7 +8,113 @@ data:
     path "secret/data/teams/team-a/*" {
       capabilities = ["read"]
     }
+    path "secret/data/teams/team-a/tokens/+" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-a/tokens/+/+" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-a/tokens/+/+/+" {
+      capabilities = ["read"]
+    }
+    path "secret/metadata/teams/team-a/*" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-a/tokens" {
+      capabilities = ["list"]
+    }
+    path "secret/metadata/teams/team-a/tokens/+" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-a/tokens/+/+" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-a/tokens/+/+/+" {
+      capabilities = ["list", "read"]
+    }
   team-b.hcl: |
     path "secret/data/teams/team-b/*" {
       capabilities = ["read"]
+    }
+    path "secret/data/teams/team-b/tokens/+" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-b/tokens/+/+" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-b/tokens/+/+/+" {
+      capabilities = ["read"]
+    }
+    path "secret/metadata/teams/team-b/*" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-b/tokens" {
+      capabilities = ["list"]
+    }
+    path "secret/metadata/teams/team-b/tokens/+" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-b/tokens/+/+" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-b/tokens/+/+/+" {
+      capabilities = ["list", "read"]
+    }
+  team-c.hcl: |
+    path "secret/data/teams/team-c/*" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-c/tokens/+" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-c/tokens/+/+" {
+      capabilities = ["read"]
+    }
+    path "secret/data/teams/team-c/tokens/+/+/+" {
+      capabilities = ["read"]
+    }
+    path "secret/metadata/teams/team-c/*" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-c/tokens" {
+      capabilities = ["list"]
+    }
+    path "secret/metadata/teams/team-c/tokens/+" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-c/tokens/+/+" {
+      capabilities = ["list", "read"]
+    }
+    path "secret/metadata/teams/team-c/tokens/+/+/+" {
+      capabilities = ["list", "read"]
+    }
+  team-a-issuer.hcl: |
+    path "secret/data/teams/team-a/tokens/+" {
+      capabilities = ["create", "read", "update"]
+    }
+    path "secret/data/teams/team-a/tokens/+/+" {
+      capabilities = ["create", "read", "update"]
+    }
+    path "secret/data/teams/team-a/tokens/+/+/+" {
+      capabilities = ["create", "read", "update"]
+    }
+  team-b-issuer.hcl: |
+    path "secret/data/teams/team-b/tokens/+" {
+      capabilities = ["create", "read", "update"]
+    }
+    path "secret/data/teams/team-b/tokens/+/+" {
+      capabilities = ["create", "read", "update"]
+    }
+    path "secret/data/teams/team-b/tokens/+/+/+" {
+      capabilities = ["create", "read", "update"]
+    }
+  team-c-issuer.hcl: |
+    path "secret/data/teams/team-c/tokens/+" {
+      capabilities = ["create", "read", "update"]
+    }
+    path "secret/data/teams/team-c/tokens/+/+" {
+      capabilities = ["create", "read", "update"]
+    }
+    path "secret/data/teams/team-c/tokens/+/+/+" {
+      capabilities = ["create", "read", "update"]
     }

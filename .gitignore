@@ -13,3 +13,5 @@ tofu/platforms/*/*.tfstate
 tofu/platforms/*/*.tfstate.*
 ansible/inventory/hosts.yml
 *.retry
+__pycache__/
+*.pyc
