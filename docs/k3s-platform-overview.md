@@ -160,11 +160,13 @@ Proven from the sample pod in `team-a`:
 
 CoreDNS keeps the stock Corefile. `platform/coredns/custom.yaml` adds a `template` plugin (the stock file already has `hosts`, and a second `hosts` plugin crash-loops CoreDNS). Every `*.lab.local` name answers `10.114.66.182` inside the cluster.
 
-The host `/etc/hosts` was not edited. This user cannot `sudo` without a password. From the host, call the UIs with `curl --resolve <name>:443:10.114.66.182 --cacert credentials/platform-ca.crt`. To use a browser on the host, add:
+The host browser does not use CoreDNS, and `systemd-resolved` will not answer `*.local`. The name has to be in `/etc/hosts`. On 26 Nov 2026 that line was missing (the file was still the stock hosts file from 23 Aug), so `https://sample.lab.local` failed as an unknown host even though `10.114.66.182:443` was open. The line is now:
 
 ```text
 10.114.66.182 argocd.lab.local grafana.lab.local hubble.lab.local gitea.lab.local harbor.lab.local vault.lab.local sample.lab.local opencost.lab.local
 ```
+
+The platform CA is in the host trust store (`/usr/local/share/ca-certificates/lab-platform-ca.crt`) and in the Firefox profile `dkj2x7yf.default`. `curl https://sample.lab.local/healthz` returns 200 with no `--resolve` and no `--cacert`. Restart Firefox if it was already open when the CA was imported.
 
 HAProxy is a DaemonSet with host ports. Ingress objects have an empty load-balancer status, so Argo CD uses a health check that treats those Ingresses as Healthy. HTTP on the node IP without a Host header returns 404.
 
@@ -265,7 +267,7 @@ Re-check with `kubectl -n argocd get applications`.
 - Vault root token and Harbor secretKey are in the git values so sync stays stable.
 - Grafana is 12.3.1, the version chart 10.5.15 ships. Harbor is 2.15.4, the version chart 1.19.4 ships.
 - Hubble relay TLS is disabled. Cilium also runs the chart's envoy DaemonSet.
-- Host `/etc/hosts` is unchanged. Use `--resolve` or add the line above.
+- Host `/etc/hosts` now has the `lab.local` names. `.local` is not forwarded by systemd-resolved, so a missing hosts line looks like an unknown site.
 - OpenCost does not persist `/var/configs`.
 - The API is slow while Argo CD renders several Helm charts. `make apply` does not wait for every app to become Healthy.
 - Multipass addresses are DHCP. The contract field `address` is `dhcp`; the real IPs are outputs. Imported memory and disk stay as byte counts in state, with `ignore_changes`, so a plan does not stop the VMs to rewrite `4G` or `30G`.
