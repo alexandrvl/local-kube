@@ -268,13 +268,13 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: node-no-world-https
 spec:
-  description: The node root namespace, including host-network pods, may not open TCP 443 to the world. Image pulls go through Harbor. Default deny stays off so DNS, the API, VXLAN, and SSH are untouched.
-  enableDefaultDeny:
-    egress: false
-    ingress: false
-  nodeSelector:
-    matchLabels:
-      kubernetes.io/os: linux
+  description: The node root namespace, including host-network pods, may not open TCP 443 to the world. Image pulls go through Harbor. Everything else on the node stays allowed, then this deny wins.
+  # Empty selects every node. The host identity does not carry
+  # kubernetes.io/os, so a label selector never matched.
+  nodeSelector: {}
+  egress:
+    - toEntities:
+        - all
   egressDeny:
     - toEntities:
         - world
