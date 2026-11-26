@@ -16,6 +16,13 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9898"
         prometheus.io/path: "/metrics"
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "team-a"
+        vault.hashicorp.com/agent-inject-secret-demo: "secret/data/teams/team-a/demo"
+        vault.hashicorp.com/agent-inject-template-demo: |
+          {{- with secret "secret/data/teams/team-a/demo" -}}
+          {{ .Data.data.value }}
+          {{- end }}
     spec:
       serviceAccountName: team-a
       containers:

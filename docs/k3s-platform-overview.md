@@ -75,7 +75,7 @@ Pinned in `versions/pins.env` and `versions/charts.env`. Installed versions:
 | cert-manager | v1.21.3 | Helm |
 | Argo CD | chart 10.20.0, app v3.6.3 | Helm |
 | Gitea | image `docker.io/gitea/gitea:28.4.0` | manifest. Chart 12.7.0 still packages 1.27.0 |
-| Vault | chart 0.34.1, image 2.2.2 | Helm, dev mode |
+| Vault | chart 0.34.1, image 2.2.2, injector vault-k8s 1.7.6 | Helm, file storage, Agent Injector |
 | Alloy | chart 1.16.0, v1.22.0 | Helm |
 | Mimir | `grafana/mimir:3.2.6` | single-binary manifest |
 | Loki | `grafana/loki:3.7.10` | single-binary manifest |
@@ -197,9 +197,30 @@ Repo server parallelism is 1 and `ARGOCD_EXEC_TIMEOUT` is 10m. Several charts pu
 
 ## Secrets
 
-Vault 2.2.2 runs as pod `vault-0` on `k3s-server`, file storage on PVC `data-vault-0` (1Gi, local-path), unsealed, UI on. The injector is off. A postStart hook unseals from Secret `vault-unseal`. Kubernetes auth is enabled. Policy `team-a` reads `secret/data/teams/team-a/*`. Role `team-a` is bound to ServiceAccount `team-a` in namespace `team-a`. kv-v2 is mounted at `secret/`.
+Vault 2.2.2 runs as pod `vault-0` on `k3s-server`, file storage on PVC `data-vault-0` (1Gi, local-path), unsealed, UI on. A postStart hook unseals from Secret `vault-unseal`, then writes the policies and Kubernetes auth roles from ConfigMap `vault-auth`. kv-v2 is mounted at `secret/`. The server holds this one small volume. A raft cluster was not added.
 
-After the pod was deleted and came back unsealed, the sample ServiceAccount read `secret/data/teams/team-a/demo` (`value=vault-persist-ok`) and was denied `teams/team-b/demo`. The server holds this one small volume. A raft cluster was not added.
+The Vault Agent Injector (`vault-agent-injector`, image `hashicorp/vault-k8s:1.7.6`) runs on `k3s-agent`. It is the ingestion path. A workload does not log in with the root token. The sidecar uses the pod's ServiceAccount against auth method `kubernetes`, audience `vault`.
+
+Policy `team-a` reads `secret/data/teams/team-a/*`. Role `team-a` is bound to ServiceAccount `team-a` in namespace `team-a`. Policy `team-b` reads only `secret/data/teams/team-b/*`, and role `team-b` is bound to ServiceAccount `team-b` in `team-b`.
+
+Turn ingestion on for a pod:
+
+1. Give its ServiceAccount a role whose policy can read the path. The role must set `audience=vault`.
+2. Add these annotations. The name after `agent-inject-secret-` and `agent-inject-template-` is the filename under `/vault/secrets/`.
+
+```yaml
+vault.hashicorp.com/agent-inject: "true"
+vault.hashicorp.com/role: "team-a"
+vault.hashicorp.com/agent-inject-secret-demo: "secret/data/teams/team-a/demo"
+vault.hashicorp.com/agent-inject-template-demo: |
+  {{- with secret "secret/data/teams/team-a/demo" -}}
+  {{ .Data.data.value }}
+  {{- end }}
+```
+
+3. The init container renders the file before the app starts. The sidecar re-renders static KV secrets every 30 seconds (`agentDefaults.templateConfig.staticSecretRenderInterval`). Read the file again to see a new value. A process that copied the file into its own environment needs a restart.
+
+The sample Deployment in `team-a` uses that annotation set. `kubectl -n team-a exec deploy/sample -c sample -- cat /vault/secrets/demo` returns the same `value` field as `secret/data/teams/team-a/demo`. The sample container has no Vault token. A pod that uses role `team-b` and asks for the team-a path fails in the agent init container with permission denied and does not mount the secret.
 
 ## Observability
 

@@ -1,5 +1,25 @@
 injector:
-  enabled: false
+  enabled: true
+  replicas: 1
+  nodeSelector:
+    kubernetes.io/hostname: k3s-agent
+  agentImage:
+    repository: hashicorp/vault
+    tag: "2.2.2"
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+  agentDefaults:
+    cpuLimit: "100m"
+    cpuRequest: "10m"
+    memLimit: "96Mi"
+    memRequest: "32Mi"
+    templateConfig:
+      exitOnRetryFailure: true
+      staticSecretRenderInterval: "30s"
 server:
   image:
     repository: hashicorp/vault
@@ -27,6 +47,8 @@ server:
   extraVolumes:
     - type: secret
       name: vault-unseal
+    - type: configMap
+      name: vault-auth
   postStart:
     - /bin/sh
     - -c
@@ -35,15 +57,30 @@ server:
       i=0
       while [ "$i" -lt 30 ]; do
         if vault status > /tmp/vault-status 2>&1; then
-          exit 0
+          break
         fi
         if grep -q Sealed /tmp/vault-status; then
-          vault operator unseal "$(cat /vault/userconfig/vault-unseal/unseal-key)" && exit 0
+          vault operator unseal "$(cat /vault/userconfig/vault-unseal/unseal-key)" && break
         fi
         i=$((i+1))
         sleep 2
       done
-      exit 1
+      vault status >/dev/null
+      export VAULT_TOKEN="$(cat /vault/userconfig/vault-unseal/root-token)"
+      vault policy write team-a /vault/userconfig/vault-auth/team-a.hcl
+      vault policy write team-b /vault/userconfig/vault-auth/team-b.hcl
+      vault write auth/kubernetes/role/team-a \
+        bound_service_account_names=team-a \
+        bound_service_account_namespaces=team-a \
+        audience=vault \
+        policies=team-a \
+        ttl=1h
+      vault write auth/kubernetes/role/team-b \
+        bound_service_account_names=team-b \
+        bound_service_account_namespaces=team-b \
+        audience=vault \
+        policies=team-b \
+        ttl=1h
   resources:
     requests:
       cpu: 20m
