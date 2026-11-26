@@ -137,19 +137,21 @@ Further exceptions, each one a named policy:
 | Policy | What it allows |
 | --- | --- |
 | ingress-controller | World and host to HAProxy ports 80, 443, 8080, 8443, 1042. HAProxy egress to every pod, so Ingress backends work, including Hubble in `kube-system` |
-| argocd-git-and-charts | Argo CD to Gitea TCP 3000, and to the world on 80 and 443 for public Helm charts |
+| argocd-git-and-charts | Argo CD to Gitea TCP 3000, and to the Helm chart names only (`helm.cilium.io`, `cilium.github.io`, `helm.releases.hashicorp.com`, `helm.goharbor.io`, `charts.jetstack.io`, `github.com`, `*.github.io`, `*.githubusercontent.com`) on 80 and 443. A DNS rule is required so those names are learned |
 | gitea-from-argocd | Gitea accepts TCP 3000 from Argo CD |
 | vault-from-teams | Vault TCP 8200 from team-a, team-b, team-c, and ingress |
 | teams-to-vault | Team pods egress to Vault TCP 8200 |
 | registry-pulls | Any non-kube-system pod to Harbor TCP 80, 443, 5000 |
-| harbor-proxy-upstream | Harbor pods may egress to the world on TCP 443. Node processes may not |
+| pods-no-world-https | Every pod except Harbor and Argo CD is denied TCP 443 to the world. This is not a hostname list | 
+| node-no-world-https | The node root namespace, including host-network pods, is denied TCP 443 to the world. Other node traffic stays allowed | 
+| harbor-proxy-upstream | Harbor pods may egress to the world on TCP 443. That is the only registry upstream |
 | opencost-to-mimir / mimir-from-opencost | OpenCost to Mimir TCP 9009 |
 | kube-system-platform | kube-system to the API, node, and health endpoints, and ingress to Hubble |
 | kube-dns-from-cluster | Cluster pods to CoreDNS :53, and CoreDNS egress to the host resolver :53 |
 
 Node image pulls go through Harbor, not the public registries. Ansible role `registry_proxy` writes `/etc/rancher/k3s/registries.yaml` on both nodes. containerd rewrites these hosts to a Harbor pull-through project: `docker.io` and `registry.hub.docker.com` (`dockerhub`), `ghcr.io` (`ghcr`), `quay.io` (`quay`), `registry.k8s.io` (`k8s`), `k8s.gcr.io` (`k8s-gcr`), `gcr.io` (`gcr`), `mirror.gcr.io` (`mirror-gcr`), `ecr-public.aws.com` and `public.ecr.aws` (`ecr-public`), `reg.kyverno.io` (`kyverno`), `registry.gitlab.com` (`gitlab`), `docker.elastic.co` (`elastic`), `mcr.microsoft.com` (`mcr`), `nvcr.io` (`nvcr`), and `us-docker.pkg.dev`, `europe-docker.pkg.dev`, `asia-docker.pkg.dev` (`gar-us`, `gar-eu`, `gar-asia`). The node resolves `harbor.lab.test` to the ingress: `127.0.0.1` on the server, `10.114.66.182` on the agent. kubelet and `k3s crictl` use that mirror. `k3s ctr` does not, so a raw `ctr` pull is reset instead of proxied.
 
-The host firewall blocks the direct path. Registry DNS changes, so an address set alone is not enough. `k3s-registry-block` keeps an nftables set of the resolved addresses and an iptables chain `K3S_REGISTRY` that rejects TCP 443 whose TLS server name is in `registry-block.list`. The string `gcr.io` also matches `k8s.gcr.io` and `mirror.gcr.io`, and `docker.pkg.dev` matches the regional Artifact Registry hosts. A timer refreshes that every five minutes. Harbor's own upstream is the `harbor-proxy-upstream` policy, not a node exception. Harbor's Google adapter refuses to health-check `gcr.io` without a credential, and its GitLab adapter crashes without one, so those two endpoints are the generic `docker-registry` type. A hostname that is not on the list can still be dialed.
+Cilium is the control, not the hostname list. `hostFirewall.enabled` is true and attaches to `eth0`. `node-no-world-https` allows other node egress and then denies TCP 443 to entity `world`. `pods-no-world-https` denies that same port for every pod except Harbor and Argo CD. Harbor stays on `harbor-proxy-upstream`. The iptables list in `registry-block.list` is still installed, but a name that is missing from it is still denied: `registry.fedoraproject.org` is not on the list, and `curl -4 https://registry.fedoraproject.org/v2/` from both nodes timed out. The sample pod in `team-a` timed out to the same URL. Argo CD opened `helm.cilium.io` and `github.com`, and did not open `registry.fedoraproject.org`. `k3s crictl pull docker.io/library/busybox:1.36` on `k3s-agent` succeeded, and Harbor fetched `dockerhub/library/busybox` because it was not cached. Both nodes stayed Ready through the Cilium restart. `/readyz` stayed ok.
 
 Proven from the sample pod in `team-a`:
 
@@ -284,9 +286,9 @@ Re-check with `kubectl -n argocd get applications`.
 
 - One server and one agent. There is still no second control-plane node. The host cannot spare another VM next to `agent-sandbox`.
 - The 4 GiB server has restarted k3s under memory pressure. The Argo CD controller, Mimir, Loki, Grafana, and Harbor run on `k3s-agent`. Vault stays on the server with a 1Gi file volume. Avoid extra workloads on `k3s-server`.
-- A registry hostname that is not in `ansible/roles/registry_proxy/files/registry-block.list` can still be dialed from a node. The list is the common public registries. Harbor pods still reach those registries; that is the proxy upstream.
-- Grafana is 12.3.1, the version chart 10.5.15 ships. Harbor is 2.15.4, the version chart 1.19.4 ships. The pinned charts cannot ship Grafana 13 or Harbor 2.15.5.
-- Hubble relay TLS is disabled. Cilium also runs the chart's envoy DaemonSet.
+- Grafana stays 12.3.1. On 26 Nov 2026 the newest chart in `https://grafana.github.io/helm-charts` is 10.5.15, appVersion 12.3.1. That index has no appVersion 13. The community chart that ships Grafana 13 (12.0.0 and later) also changes the admin-password file env and, at 13.0.0, switches to a distroless image. That is a values rewrite, so it was not applied.
+- Harbor stays 2.15.4 from chart 1.19.4. `https://helm.goharbor.io` has no 2.15.5 chart. Chart 1.19.5 is not published. The 2.15.5 images exist, and pinning them made Harbor pull `harbor-db:v2.15.5` through itself while the database was down. The proxy returned 500, the database pod could not start, and the pin was reverted. After the rollback the UI at `https://harbor.lab.test/` returned 200.
+- Hubble relay still serves the UI without TLS. Turning server TLS on made relay fail to verify the Cilium CA, so that change was reverted. The envoy DaemonSet stays. See `docs/hubble-envoy.md`.
 - The API is slow while Argo CD renders several Helm charts. `make apply` does not wait for every app to become Healthy.
 - Multipass addresses are DHCP. Imported memory and disk stay as byte counts in state, with `ignore_changes`, so a plan does not stop the VMs to rewrite `4G` or `30G`. That ignore list was left in place.
 - VMware and Proxmox modules are real and validate. They have not been applied. Inventory for them is `python3 scripts/render-inventory.py tofu/platforms/vmware` or `tofu/platforms/proxmox`.
