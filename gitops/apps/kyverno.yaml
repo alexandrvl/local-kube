@@ -24,3 +24,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      # Client-side apply stores the whole CRD in last-applied-configuration.
+      # The Kyverno policy CRDs exceed the 256KiB annotation limit, so the
+      # MutatingPolicy CRD never lands and the controllers crash.
+      - ServerSideApply=true
