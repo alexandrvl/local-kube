@@ -220,7 +220,7 @@ vault.hashicorp.com/agent-inject-template-demo: |
 
 3. The init container renders the file before the app starts. The sidecar re-renders static KV secrets every 30 seconds (`agentDefaults.templateConfig.staticSecretRenderInterval`). Read the file again to see a new value. A process that copied the file into its own environment needs a restart.
 
-The sample Deployment in `team-a` uses that annotation set. `kubectl -n team-a exec deploy/sample -c sample -- cat /vault/secrets/demo` returns the same `value` field as `secret/data/teams/team-a/demo`. The sample container has no Vault token. A pod that uses role `team-b` and asks for the team-a path fails in the agent init container with permission denied and does not mount the secret.
+The sample Deployment in `team-a` uses that annotation set. `kubectl -n team-a exec deploy/sample -c sample -- cat /vault/secrets/demo` returns the same `value` field as `secret/data/teams/team-a/demo`. The sample container has no Vault token. The sidecar token is the Kubernetes login for `team-a`, policies `default` and `team-a`. A pod that uses role `team-b` and asks for the team-a path gets `403 permission denied` from the agent init container, and the app container never starts. Argo CD ignores `caBundle` on `vault-agent-injector-cfg` because the injector fills that field after each sync.
 
 ## Observability
 
