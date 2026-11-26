@@ -18,24 +18,41 @@ existingSecretAdminPassword: harbor-admin
 existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
 # secretKey lives in the harbor-secret-key Secret, not in git.
 existingSecretSecretKey: harbor-secret-key
+# Chart 1.19.5 is not published. These tags pin the 2.15.5 images on chart 1.19.4.
 portal:
+  image:
+    tag: v2.15.5
   nodeSelector:
     kubernetes.io/hostname: k3s-agent
 core:
+  image:
+    tag: v2.15.5
   nodeSelector:
     kubernetes.io/hostname: k3s-agent
 jobservice:
+  image:
+    tag: v2.15.5
   nodeSelector:
     kubernetes.io/hostname: k3s-agent
 registry:
+  registry:
+    image:
+      tag: v2.15.5
+  controller:
+    image:
+      tag: v2.15.5
   nodeSelector:
     kubernetes.io/hostname: k3s-agent
 database:
   internal:
+    image:
+      tag: v2.15.5
     nodeSelector:
       kubernetes.io/hostname: k3s-agent
 redis:
   internal:
+    image:
+      tag: v2.15.5
     nodeSelector:
       kubernetes.io/hostname: k3s-agent
 trivy:
