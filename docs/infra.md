@@ -20,7 +20,7 @@ The node contract is one map, `nodes`, in `tofu/variables.tf`:
 | key | VM name. `agent-sandbox` is rejected |
 | `role` | `server` or `agent` |
 | `cpus` | vCPU count |
-| `memory` | Multipass-style size, such as `4G` |
+| `memory` | Multipass-style size. Both lab nodes are `5G` |
 | `disk` | Multipass-style size, such as `30G` |
 | `address` | `dhcp` or a host address |
 | `ssh_user` | SSH login Ansible uses |
@@ -52,15 +52,9 @@ make apply     # tofu apply, authorize SSH, render inventory, ansible-playbook
 make destroy   # guarded tofu destroy of k3s-server and k3s-agent only
 ```
 
-`bootstrap/bootstrap.sh` execs `make apply`. `bootstrap/destroy.sh` execs `make destroy`. `bootstrap/legacy-bootstrap.sh` is the old imperative script and must not be used to create or delete VMs.
+`bootstrap/bootstrap.sh` execs `make apply`. `bootstrap/destroy.sh` execs `make destroy`. `bootstrap/legacy-bootstrap.sh` installs Cilium, cert-manager, HAProxy, Gitea, and Argo CD after k3s exists. It must not be used to create or delete VMs.
 
-This machine's VMs were imported, not recreated:
-
-```bash
-make adopt
-```
-
-Import ids are the Multipass names `k3s-server` and `k3s-agent`. State is local (`tofu/terraform.tfstate`, gitignored).
+`make adopt` imports already-running Multipass VMs. Import ids are the names `k3s-server` and `k3s-agent`. State is local (`tofu/terraform.tfstate`, gitignored). The current nodes were created by `make apply`, not imported.
 
 `make destroy` runs `scripts/plan-guard.py`, which refuses the plan if it mentions `agent-sandbox` or any resource other than the two lab instances.
 
@@ -69,9 +63,8 @@ Import ids are the Multipass names `k3s-server` and `k3s-agent`. State is local 
 1. `os_baseline` writes the sysctl and kernel-module files from the original cloud-init and stops unattended upgrades.
 2. `k3s_server` installs pinned k3s only when the service is not active. On a running server it asserts the version and the flags (`--cluster-init`, no flannel, no kube-proxy, no Traefik, no ServiceLB).
 3. `k3s_agent` does the same for the agent and `--node-ip`.
-4. `kubeconfig` copies `credentials/kubeconfig` and `credentials/state.env`, then `kubectl apply`s `gitops/root.yaml` if it is not already unchanged.
-
-A second run on this cluster reported `changed=0` for both nodes.
+4. `registry_proxy` creates the Harbor pull-through projects, then writes the platform CA, `registries.yaml`, and the host firewall list. The Harbor API task needs Harbor to be up.
+5. `kubeconfig` copies `credentials/kubeconfig` and `credentials/state.env`, then `kubectl apply`s `gitops/root.yaml`. That apply needs the Argo CD CRDs.
 
 ## SSH
 
@@ -100,7 +93,7 @@ python3 scripts/render-inventory.py tofu/platforms/vmware
 
 `scripts/render-inventory.py` reads `tofu/` when no directory is given. Ansible roles and `gitops/` stay as they are. Do not set `hypervisor` in `tofu/` to anything but `multipass`; that variable is rejected so a switch cannot delete the Multipass VMs from this state.
 
-The vSphere module clones `vmware_template` and sets CPU, memory (MiB parsed from `4G`), and disk (GB parsed from `30G`). `address = "dhcp"` uses the address vSphere reports. A static address is passed through as the contract IP.
+The vSphere module clones `vmware_template` and sets CPU, memory (MiB parsed from `5G`), and disk (GB parsed from `30G`). `address = "dhcp"` uses the address vSphere reports. A static address is passed through as the contract IP.
 
 ## Switching to Proxmox
 
@@ -123,9 +116,9 @@ python3 scripts/render-inventory.py tofu/platforms/proxmox
 
 The module clones `proxmox_template_id`, sets cores, dedicated memory, and a scsi0 disk, and uses cloud-init for `dhcp` or the given address plus `ssh_user` and `ssh_public_key`. Provider `bpg/proxmox` 0.124.0 also reads `PROXMOX_VE_ENDPOINT` when the configuration does not set one. This workspace sets `endpoint` from `proxmox_endpoint`.
 
-## Adopted size strings
+## Declared sizes
 
-Imported Multipass memory and disk are byte counts (`4294967296` is 4GiB, `3221225472` is 3GiB, `32212254720` is 30GiB). The configuration still says `4G`, `3G`, and `30G`. `lifecycle.ignore_changes` on `memory`, `disk`, `image`, and `zone` keeps `tofu plan` from stopping the VMs to rewrite those strings. A brand-new instance still launches with the configured sizes and image. Changing size on an already imported node means removing that attribute from `ignore_changes` and reviewing the plan; an in-place resize stops the VM.
+Both nodes are created at `memory = "5G"`. Memory is not in `lifecycle.ignore_changes`, so the string in `tofu/variables.tf` is the size Multipass launches. `tofu plan` stays empty while the provider keeps that string. Disk, image, and zone stay in `ignore_changes`: Multipass reports disk as a byte count after launch (`32212254720` is 30GiB), and image and zone are launch-time. Changing memory on a running node means planning the new size. `resize_policy` is `in_place`, and Multipass stops the VM to apply it. Destroy and recreate is the path that also drops the cluster.
 
 ## Credentials
 

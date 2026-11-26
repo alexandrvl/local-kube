@@ -9,11 +9,11 @@ resource "multipass_instance" "node" {
   zone          = var.multipass_zone
   resize_policy = "in_place"
 
-  # image and zone are launch-time. Imported memory and disk come back as byte
-  # counts (4GiB, 3GiB, 30GiB). Ignoring those three avoids stopping a live VM
-  # just to rewrite the unit string. New instances still use the values above.
+  # image and zone are launch-time. Disk stays ignored because Multipass
+  # reports bytes after launch. Memory is not ignored: the declared size is
+  # what the instance is created with.
   lifecycle {
-    ignore_changes = [image, zone, memory, disk]
+    ignore_changes = [image, zone, disk]
     precondition {
       condition     = each.key != "agent-sandbox"
       error_message = "refusing to manage the agent-sandbox VM"

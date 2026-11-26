@@ -2,7 +2,7 @@
 # Pod CIDR matches the k3s default. Tunnel mode is used because the nodes
 # sit on the Multipass DHCP bridge and do not route pod IPs natively.
 kubeProxyReplacement: "true"
-k8sServiceHost: 10.114.66.182
+k8sServiceHost: 10.114.66.211
 k8sServicePort: "6443"
 routingMode: tunnel
 tunnelProtocol: vxlan

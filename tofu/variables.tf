@@ -24,7 +24,7 @@ variable "nodes" {
     k3s-server = {
       role     = "server"
       cpus     = 2
-      memory   = "4G"
+      memory   = "5G"
       disk     = "30G"
       address  = "dhcp"
       ssh_user = "ubuntu"
@@ -33,7 +33,7 @@ variable "nodes" {
     k3s-agent = {
       role     = "agent"
       cpus     = 2
-      memory   = "3G"
+      memory   = "5G"
       disk     = "30G"
       address  = "dhcp"
       ssh_user = "ubuntu"
