@@ -32,6 +32,10 @@ hubble:
 # Stay on "default" so a pod is enforced only once a policy selects it.
 # Restricted namespaces are selected by the platform network policies.
 policyEnforcementMode: default
+# Host policies in platform/network/policies.yaml deny world TCP 443 from the
+# node root namespace. Devices are auto-detected (eth0).
+hostFirewall:
+  enabled: true
 resources:
   requests:
     cpu: 50m

@@ -81,8 +81,15 @@ spec:
         - ports:
             - port: "3000"
               protocol: TCP
-    - toEntities:
-        - world
+    # Chart indexes and tarballs only. Not an allow for every public registry.
+    - toFQDNs:
+        - matchName: helm.cilium.io
+        - matchName: helm.releases.hashicorp.com
+        - matchName: helm.goharbor.io
+        - matchName: charts.jetstack.io
+        - matchName: github.com
+        - matchPattern: "*.github.io"
+        - matchPattern: "*.githubusercontent.com"
       toPorts:
         - ports:
             - port: "443"
@@ -220,9 +227,53 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumClusterwideNetworkPolicy
 metadata:
+  name: pods-no-world-https
+spec:
+  description: Pods other than Harbor and Argo CD may not open TCP 443 to the world. This is the registry control. It does not depend on a hostname list. Deny wins over a broader allow.
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: NotIn
+        values:
+          - harbor
+          - argocd
+  egressDeny:
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: node-no-world-https
+spec:
+  description: The node root namespace, including host-network pods, may not open TCP 443 to the world. Image pulls go through Harbor. Default deny stays off so DNS, the API, VXLAN, and SSH are untouched.
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  nodeSelector:
+    matchLabels:
+      kubernetes.io/os: linux
+  egressDeny:
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
   name: harbor-proxy-upstream
 spec:
-  description: Harbor is the only image-pull proxy. Its pods may reach public registries. Node processes may not.
+  description: Harbor is the only image-pull proxy. Its pods may reach public registries. The node root namespace may not.
   endpointSelector:
     matchLabels:
       k8s:io.kubernetes.pod.namespace: harbor
