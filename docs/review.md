@@ -68,7 +68,7 @@ Checked again on 26 Nov 2026, 14:22 Europe/Tallinn, after the changes below. The
 | OpenCost | done | PVC `opencost-pvc` is mounted at `/var/configs`. `default.json` is owned by uid 1001. Allocation API returned HTTP 200. The permission error is gone from the new pod log. |
 | Secrets in git | done | `platform/vault/values.yaml` has no root token. Harbor uses Secret `harbor-secret-key` and the values file has no `secretKey`. A sync does not render either value. The unseal key and root token are in `credentials/lab-secrets.env` and Secret `vault-unseal`. |
 | Second control-plane node | still open | Left on purpose. The host has no room for another VM, and this pass did not add one. |
-| Public image pulls | done | Both nodes pull through Harbor. `k3s crictl pull docker.io/library/alpine:3.18` on `k3s-agent` stored a new image, and Harbor fetched `dockerhub/library/alpine@sha256:de0eb0b3f2a4…` from upstream. `curl -4 https://registry-1.docker.io/v2/` was reset on the server and failed to connect on the agent. Registries absent from `registry-block.list` are still a direct exception. |
+| Public image pulls | done | `k3s crictl pull docker.io/library/alpine:3.18` on `k3s-agent` stored a new image, and Harbor fetched `dockerhub/library/alpine@sha256:de0eb0b3f2a4…` from upstream. Both nodes have the mirror. `curl -4 https://registry-1.docker.io/v2/` was reset on the server and failed to connect on the agent. Registries absent from `registry-block.list` are still a direct exception. |
 | Grafana 13 and Harbor 2.15.5 | still open | The pinned charts ship Grafana 12.3.1 and Harbor 2.15.4. Those charts were not replaced. |
 | Multipass `ignore_changes` | still open | Left on purpose. Dropping it would plan an in-place resize and stop the VMs. |
 
