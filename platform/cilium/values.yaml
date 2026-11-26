@@ -27,9 +27,6 @@ hubble:
       - http
   relay:
     enabled: true
-    tls:
-      server:
-        enabled: true
   ui:
     enabled: true
 # Stay on "default" so a pod is enforced only once a policy selects it.
