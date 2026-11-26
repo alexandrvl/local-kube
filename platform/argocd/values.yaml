@@ -3,9 +3,15 @@ global:
 configs:
   params:
     server.insecure: "true"
+    reposerver.parallelism.limit: "1"
   cm:
     timeout.reconciliation: 180s
     admin.enabled: "true"
+    resource.customizations.health.networking.k8s.io_Ingress: |
+      hs = {}
+      hs.status = "Healthy"
+      hs.message = "HAProxy serves this Ingress on node host ports 80 and 443"
+      return hs
 dex:
   enabled: false
 notifications:
@@ -20,12 +26,15 @@ controller:
       memory: 512Mi
 repoServer:
   replicas: 1
+  env:
+    - name: ARGOCD_EXEC_TIMEOUT
+      value: 10m
   resources:
     requests:
-      cpu: 20m
-      memory: 64Mi
+      cpu: 50m
+      memory: 128Mi
     limits:
-      memory: 384Mi
+      memory: 512Mi
 server:
   replicas: 1
   resources:

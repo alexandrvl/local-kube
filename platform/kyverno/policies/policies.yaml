@@ -1,61 +1,39 @@
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
 metadata:
   name: require-team-app-label
 spec:
-  validationFailureAction: Enforce
-  background: true
-  rules:
-    - name: require-app-kubernetes-io-name
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              namespaceSelector:
-                matchExpressions:
-                  - key: kubernetes.io/metadata.name
-                    operator: In
-                    values:
-                      - team-a
-                      - team-b
-                      - team-c
-      validate:
-        message: "Pods in team namespaces must set the label app.kubernetes.io/name."
-        pattern:
-          metadata:
-            labels:
-              app.kubernetes.io/name: "?*"
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: team-namespace
+      expression: "request.namespace in ['team-a', 'team-b', 'team-c']"
+  validations:
+    - expression: "has(object.metadata.labels) && 'app.kubernetes.io/name' in object.metadata.labels && size(object.metadata.labels['app.kubernetes.io/name']) > 0"
+      message: "Pods in team namespaces must set the label app.kubernetes.io/name."
 ---
-apiVersion: kyverno.io/v1
-kind: ClusterPolicy
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
 metadata:
   name: disallow-privileged-teams
 spec:
-  validationFailureAction: Enforce
-  background: true
-  rules:
-    - name: deny-privileged
-      match:
-        any:
-          - resources:
-              kinds:
-                - Pod
-              namespaceSelector:
-                matchExpressions:
-                  - key: kubernetes.io/metadata.name
-                    operator: In
-                    values:
-                      - team-a
-                      - team-b
-                      - team-c
-      validate:
-        message: "Privileged containers are not allowed in team namespaces."
-        foreach:
-          - list: "request.object.spec.containers[]"
-            deny:
-              conditions:
-                all:
-                  - key: "{{ element.securityContext.privileged || false }}"
-                    operator: Equals
-                    value: true
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: team-namespace
+      expression: "request.namespace in ['team-a', 'team-b', 'team-c']"
+  validations:
+    - expression: "object.spec.containers.all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || c.securityContext.privileged == false)"
+      message: "Privileged containers are not allowed in team namespaces."
