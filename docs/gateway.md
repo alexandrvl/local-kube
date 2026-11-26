@@ -96,6 +96,8 @@ Community KrakenD 3.0.5 cannot replace this reader. `jwk_local_path` is loaded o
 
 `kid` is the SHA-256 of the certificate's Subject Public Key Info, base64url, without padding (`kid_of`). If a Secret named `signer-previous` exists, its certificate is appended to the same document. That Secret is not in the lab.
 
+On 26 November 2026 each public URL returned one key, and the current acme token was accepted on each API. `https://physical-trading.trading.lab.test/.well-known/jwks.json` returned `V7yLY1C24CV-NzQvOGKtoTX1t-Wk-atwK3q-Q1rhyMs`. Energy prices returned `AokeOJ6DS5YNsnnlFpyOV-lwedR1g5y16TEh4nGSils`. Customers returned `tCAOmAZhUrzxnKrBQ4QEHG-86VKxe1A4Eq6NYeeU8xI`. POST `/time-series`, POST `/prices`, and POST `/customers` returned 200. The time-series Service itself returned 404 for `/.well-known/jwks.json`. A request from the team-a sample pod to `jwks.team-a.svc:8080` timed out.
+
 ## One KrakenD per team
 
 Each team runs its own KrakenD in its own namespace. Team A cannot edit team B's gateway. One shared process would put one config, one key set, and one outage on every API. A mistake there could make team A's signing key verify a token on team C.
