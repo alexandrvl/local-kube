@@ -69,7 +69,7 @@ kind: CiliumClusterwideNetworkPolicy
 metadata:
   name: argocd-git-and-charts
 spec:
-  description: Argo CD reaches in-cluster Gitea and public Helm chart repositories.
+  description: Argo CD reaches in-cluster Gitea and the Helm chart names below. Other public registries are not included. The DNS rule is what lets toFQDNs learn those addresses.
   endpointSelector:
     matchLabels:
       k8s:io.kubernetes.pod.namespace: argocd
@@ -81,9 +81,24 @@ spec:
         - ports:
             - port: "3000"
               protocol: TCP
+    # The proxy has to see the lookup or toFQDNs never learns an address.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
     # Chart indexes and tarballs only. Not an allow for every public registry.
     - toFQDNs:
         - matchName: helm.cilium.io
+        - matchName: cilium.github.io
         - matchName: helm.releases.hashicorp.com
         - matchName: helm.goharbor.io
         - matchName: charts.jetstack.io
