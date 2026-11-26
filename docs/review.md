@@ -73,3 +73,15 @@ Checked again on 26 Nov 2026, 14:22 Europe/Tallinn, after the changes below. The
 | Multipass `ignore_changes` | still open | Left on purpose. Dropping it would plan an in-place resize and stop the VMs. |
 
 Harbor’s registry, Redis, and jobservice disks were on `k3s-server`. Pinning those pods to the agent required new volumes. The database volume was already on the agent and was kept. The UI at `https://harbor.lab.test/` returned 200. The previous `lab/busybox:lab` tag was on the disk that had to be recreated.
+
+## cert-manager Hubble drops
+
+Checked 26 Nov 2026, 14:39 Europe/Tallinn. Hubble on both nodes shows one drop, repeated, and no AUDIT verdicts. Nothing sourced from `cert-manager` is dropped.
+
+`observability/alloy` to `cert-manager` pods, TCP 9402, egress, `POLICY_DENIED`. Port 9402 is the metrics port (`prometheus.io/scrape=true`). `restricted-baseline` selects Alloy and its egress list does not include other namespaces, so the default deny drops the scrape. `allow-same-namespace` in `observability` does not match. The cert-manager ingress side would allow a packet from `observability`; the packet never gets there.
+
+cert-manager is not failing. All three deployments are `1/1`. Every Certificate is Ready, including `platform-ca` and `sample-tls`. No drops of webhook, ACME, cainjector, or leader-election traffic. The policy stays closed.
+
+```text
+Nov 26 12:38:14.228: observability/alloy-fc4ms:49962 <> cert-manager/cert-manager-7fd5ddbf9b-8flc5:9402 policy-verdict:none EGRESS DENIED (TCP Flags: SYN)
+```
