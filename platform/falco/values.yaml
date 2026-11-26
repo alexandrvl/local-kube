@@ -12,3 +12,11 @@ resources:
     memory: 384Mi
 controller:
   kind: daemonset
+# The image already contains falco_rules.yaml. falcoctl would download a newer
+# index from GitHub, and pods cannot open world TCP 443.
+falcoctl:
+  artifact:
+    install:
+      enabled: false
+    follow:
+      enabled: false
