@@ -72,13 +72,13 @@ server:
       vault write auth/kubernetes/role/team-a \
         bound_service_account_names=team-a \
         bound_service_account_namespaces=team-a \
-        audience=vault \
+        audience="https://kubernetes.default.svc.cluster.local" \
         policies=team-a \
         ttl=1h
       vault write auth/kubernetes/role/team-b \
         bound_service_account_names=team-b \
         bound_service_account_namespaces=team-b \
-        audience=vault \
+        audience="https://kubernetes.default.svc.cluster.local" \
         policies=team-b \
         ttl=1h
   resources:

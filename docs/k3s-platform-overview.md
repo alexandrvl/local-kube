@@ -199,13 +199,13 @@ Repo server parallelism is 1 and `ARGOCD_EXEC_TIMEOUT` is 10m. Several charts pu
 
 Vault 2.2.2 runs as pod `vault-0` on `k3s-server`, file storage on PVC `data-vault-0` (1Gi, local-path), unsealed, UI on. A postStart hook unseals from Secret `vault-unseal`, then writes the policies and Kubernetes auth roles from ConfigMap `vault-auth`. kv-v2 is mounted at `secret/`. The server holds this one small volume. A raft cluster was not added.
 
-The Vault Agent Injector (`vault-agent-injector`, image `hashicorp/vault-k8s:1.7.6`) runs on `k3s-agent`. It is the ingestion path. A workload does not log in with the root token. The sidecar uses the pod's ServiceAccount against auth method `kubernetes`, audience `vault`.
+The Vault Agent Injector (`vault-agent-injector`, image `hashicorp/vault-k8s:1.7.6`) runs on `k3s-agent`. It is the ingestion path. A workload does not log in with the root token. The sidecar uses the pod's ServiceAccount against auth method `kubernetes`. The projected token audience is `https://kubernetes.default.svc.cluster.local`, and the roles expect that audience.
 
 Policy `team-a` reads `secret/data/teams/team-a/*`. Role `team-a` is bound to ServiceAccount `team-a` in namespace `team-a`. Policy `team-b` reads only `secret/data/teams/team-b/*`, and role `team-b` is bound to ServiceAccount `team-b` in `team-b`.
 
 Turn ingestion on for a pod:
 
-1. Give its ServiceAccount a role whose policy can read the path. The role must set `audience=vault`.
+1. Give its ServiceAccount a role whose policy can read the path. Set the role audience to `https://kubernetes.default.svc.cluster.local`.
 2. Add these annotations. The name after `agent-inject-secret-` and `agent-inject-template-` is the filename under `/vault/secrets/`.
 
 ```yaml
