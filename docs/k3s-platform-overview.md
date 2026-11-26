@@ -57,10 +57,10 @@ make destroy
 
 deletes only `k3s-server` and `k3s-agent`. `./bootstrap/destroy.sh` execs that target.
 
-Kubeconfig for day-to-day use:
+Kubeconfig for day-to-day use is `~/.kube/config`, mode 600, context `default` (this lab, and the current context). kubectl reads that path when `KUBECONFIG` is unset, so the shell rc does not set it. The repo copy remains `credentials/kubeconfig`.
 
 ```bash
-export KUBECONFIG="$PWD/credentials/kubeconfig"
+kubectl --context default get nodes
 ```
 
 ## Versions
@@ -175,7 +175,7 @@ HAProxy is a DaemonSet with host ports. Ingress objects have an empty load-balan
 
 | Service | URL | Login |
 | --- | --- | --- |
-| API | https://10.114.66.182:6443 | `credentials/kubeconfig` |
+| API | https://10.114.66.182:6443 | `~/.kube/config`, context `default`. Repo copy: `credentials/kubeconfig` |
 | Sample app | https://sample.lab.test | none. podinfo 6.17.0, HTTP/2 |
 | Argo CD | https://argocd.lab.test | user `admin`, password file `credentials/argocd-admin-password` |
 | Grafana | https://grafana.lab.test | user `admin`, `GRAFANA_ADMIN_PASSWORD` in `credentials/lab-secrets.env` |
