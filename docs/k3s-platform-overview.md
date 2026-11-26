@@ -157,7 +157,7 @@ Git remote used by Argo CD: `http://gitea.gitea.svc.cluster.local:3000/labadmin/
 
 ## Team API gateways
 
-Each team runs KrakenD in front of its own API. The API has no Ingress of its own. Callers send `User` and `Token`. `Token` is a JWT. `aud` is the API id, and `sub` must match `User`. KrakenD copies `sub` into `X-Customer`. The service uses that caller for ownership checks. A time-series type, a price, or a customer name already owned by someone else is rejected.
+The decision record is `docs/gateway.md`. Each team runs KrakenD in front of its own API. The API has no Ingress of its own. Callers send `User` and `Token`. `Token` is a JWT. `aud` is the API id, and `sub` must match `User`. KrakenD copies `sub` into `X-Customer`. The service uses that caller for ownership checks. A time-series type, a price, or a customer name already owned by someone else is rejected.
 
 | API | URL | API id |
 | --- | --- | --- |
