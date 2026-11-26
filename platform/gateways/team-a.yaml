@@ -242,6 +242,9 @@ spec:
         - name: krakend
           image: docker.io/library/krakend:3.0.5
           args: ["run", "-c", "/etc/krakend/krakend.json"]
+          env:
+            - name: USAGE_DISABLE
+              value: "1"
           ports:
             - name: http
               containerPort: 8080

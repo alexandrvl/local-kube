@@ -83,6 +83,19 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def read_body(self):
+        encoding = (self.headers.get("Transfer-Encoding") or "").lower()
+        if "chunked" in encoding:
+            chunks = []
+            while True:
+                line = self.rfile.readline().strip()
+                size = int(line.split(b";", 1)[0] or b"0", 16)
+                if size == 0:
+                    while self.rfile.readline() not in (b"\r\n", b"\n", b""):
+                        pass
+                    break
+                chunks.append(self.rfile.read(size))
+                self.rfile.read(2)
+            return b"".join(chunks)
         length = int(self.headers.get("Content-Length", "0") or "0")
         return self.rfile.read(length) if length else b""
 
