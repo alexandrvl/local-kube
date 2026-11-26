@@ -16,3 +16,12 @@ registry.k8s.io
 ecr-public.aws.com
 public.ecr.aws
 reg.kyverno.io
+gcr.io
+k8s.gcr.io
+mirror.gcr.io
+docker.pkg.dev
+registry.gitlab.com
+docker.elastic.co
+mcr.microsoft.com
+nvcr.io
+registry.hub.docker.com

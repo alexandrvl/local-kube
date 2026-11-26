@@ -13,8 +13,18 @@ REGISTRIES = [
     ("ghcr", "github-ghcr", "https://ghcr.io"),
     ("quay", "docker-registry", "https://quay.io"),
     ("k8s", "docker-registry", "https://registry.k8s.io"),
+    ("k8s-gcr", "docker-registry", "https://k8s.gcr.io"),
     ("ecr-public", "docker-registry", "https://ecr-public.aws.com"),
     ("kyverno", "docker-registry", "https://reg.kyverno.io"),
+    ("gcr", "docker-registry", "https://gcr.io"),
+    ("mirror-gcr", "docker-registry", "https://mirror.gcr.io"),
+    ("gitlab", "docker-registry", "https://registry.gitlab.com"),
+    ("elastic", "docker-registry", "https://docker.elastic.co"),
+    ("mcr", "docker-registry", "https://mcr.microsoft.com"),
+    ("nvcr", "docker-registry", "https://nvcr.io"),
+    ("gar-us", "docker-registry", "https://us-docker.pkg.dev"),
+    ("gar-eu", "docker-registry", "https://europe-docker.pkg.dev"),
+    ("gar-asia", "docker-registry", "https://asia-docker.pkg.dev"),
 ]
 
 
@@ -55,7 +65,8 @@ def main():
             continue
         code, body = call(auth, "POST", "/registries", {"name": name, "type": kind, "url": url, "insecure": False})
         if code >= 300:
-            raise SystemExit(f"registry {name} failed: {code} {body}")
+            print(f"registry {name} failed: {code} {body}")
+            continue
         print(f"registry {name} created")
     _, existing = call(auth, "GET", "/registries?page_size=100")
     by_name = {item["name"]: item for item in existing}
@@ -68,7 +79,12 @@ def main():
         print("project lab created")
     else:
         print("project lab exists")
+    failed = []
     for name, _, _ in REGISTRIES:
+        if name not in by_name:
+            failed.append(name)
+            print(f"project {name} skipped, registry missing")
+            continue
         if name in have:
             print(f"project {name} exists")
             continue
@@ -78,8 +94,12 @@ def main():
             "metadata": {"public": "true"},
         })
         if code >= 300:
-            raise SystemExit(f"project {name} failed: {code} {body}")
+            failed.append(name)
+            print(f"project {name} failed: {code} {body}")
+            continue
         print(f"project {name} created")
+    if failed:
+        raise SystemExit("harbor proxy missing: " + ", ".join(failed))
 
 
 if __name__ == "__main__":

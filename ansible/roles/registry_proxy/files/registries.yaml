@@ -26,11 +26,71 @@ mirrors:
       - https://harbor.lab.test
     rewrite:
       "^(.*)": "ecr-public/$1"
+  public.ecr.aws:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "ecr-public/$1"
   reg.kyverno.io:
     endpoint:
       - https://harbor.lab.test
     rewrite:
       "^(.*)": "kyverno/$1"
+  gcr.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "gcr/$1"
+  k8s.gcr.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "k8s-gcr/$1"
+  mirror.gcr.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "mirror-gcr/$1"
+  registry.gitlab.com:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "gitlab/$1"
+  docker.elastic.co:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "elastic/$1"
+  mcr.microsoft.com:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "mcr/$1"
+  nvcr.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "nvcr/$1"
+  us-docker.pkg.dev:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "gar-us/$1"
+  europe-docker.pkg.dev:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "gar-eu/$1"
+  asia-docker.pkg.dev:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "gar-asia/$1"
+  registry.hub.docker.com:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "dockerhub/$1"
 configs:
   harbor.lab.test:
     tls:
