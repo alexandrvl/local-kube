@@ -24,6 +24,7 @@ VAULT_ADDR = os.environ["VAULT_ADDR"].rstrip("/")
 VAULT_ROLE = os.environ["VAULT_ROLE"]
 SIGNER_SECRET = os.environ["SIGNER_SECRET"]
 PREVIOUS_SECRET = os.environ.get("PREVIOUS_SECRET", "signer-previous")
+OBSERVED_SECRET = os.environ.get("OBSERVED_SECRET", "signer-observed")
 JWKS_CONFIGMAP = os.environ["JWKS_CONFIGMAP"]
 ISSUER = os.environ["ISSUER"]
 INTERVAL = int(os.environ.get("INTERVAL_SECONDS", "10"))
@@ -144,6 +145,82 @@ def secret_pem(namespace, name, key):
     if not encoded:
         return None
     return base64.b64decode(encoded).decode()
+
+
+def write_public_cert(namespace, name, pem):
+    encoded = base64.b64encode(pem.encode()).decode()
+    code, current = kube("GET", f"/api/v1/namespaces/{namespace}/secrets/{name}")
+    if code not in (200, 404):
+        raise RuntimeError(f"secret {name} read failed: {code}")
+    if code == 200 and (current.get("data") or {}).get("tls.crt") == encoded and list(current.get("data") or {}) == ["tls.crt"]:
+        return
+    body = {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": name, "namespace": namespace},
+        "type": "Opaque",
+        "data": {"tls.crt": encoded},
+    }
+    if code == 404:
+        status, detail = kube("POST", f"/api/v1/namespaces/{namespace}/secrets", body)
+    else:
+        body["metadata"]["resourceVersion"] = current["metadata"]["resourceVersion"]
+        status, detail = kube("PUT", f"/api/v1/namespaces/{namespace}/secrets/{name}", body)
+    if status not in (200, 201):
+        raise RuntimeError(f"secret {name} write failed: {status} {detail}")
+
+
+def delete_secret(namespace, name):
+    code, detail = kube("DELETE", f"/api/v1/namespaces/{namespace}/secrets/{name}")
+    if code not in (200, 202, 404):
+        raise RuntimeError(f"secret {name} delete failed: {code} {detail}")
+
+
+def kid_is_live(meta, kid, now):
+    if not meta or meta.get("kid") != kid:
+        return False
+    expires = meta.get("expiresAt")
+    if not expires:
+        return True
+    return parse_stamp(expires) > now
+
+
+def previous_still_needed(tokens, kid, now):
+    for item in tokens:
+        status = item.get("status") or {}
+        if kid_is_live(status, kid, now) or kid_is_live(status.get("previous") or {}, kid, now):
+            return True
+    return False
+
+
+def retain_signer(namespace, current_pem, tokens):
+    """Keep the public certificate that was current before the signer Secret changed.
+
+    The private key is not copied. signer-observed is the last certificate this
+    controller saw. When the signer Secret carries a new kid, that saved
+    certificate is written to signer-previous before the snapshot moves on.
+    """
+    current_kid = kid_of(load_cert(current_pem))
+    observed = secret_pem(namespace, OBSERVED_SECRET, "tls.crt")
+    previous = secret_pem(namespace, PREVIOUS_SECRET, "tls.crt")
+    if observed and kid_of(load_cert(observed)) != current_kid:
+        write_public_cert(namespace, PREVIOUS_SECRET, observed)
+        previous = observed
+        log(f"signer rotated from {kid_of(load_cert(observed))} to {current_kid}")
+    write_public_cert(namespace, OBSERVED_SECRET, current_pem)
+    now = int(time.time())
+    if previous and kid_of(load_cert(previous)) == current_kid:
+        delete_secret(namespace, PREVIOUS_SECRET)
+        previous = None
+    elif previous and not previous_still_needed(tokens, kid_of(load_cert(previous)), now):
+        kept = kid_of(load_cert(previous))
+        delete_secret(namespace, PREVIOUS_SECRET)
+        log(f"signer dropped previous kid={kept}")
+        previous = None
+    certs = [load_cert(current_pem)]
+    if previous:
+        certs.append(load_cert(previous))
+    return certs
 
 
 def publish_jwks(namespace, certs):
@@ -270,19 +347,17 @@ def reconcile():
     if not cert_pem or not key_pem:
         log("signer secret is not ready")
         return
-    certs = [load_cert(cert_pem)]
-    previous_pem = secret_pem(namespace, PREVIOUS_SECRET, "tls.crt")
-    if previous_pem:
-        certs.append(load_cert(previous_pem))
-    publish_jwks(namespace, certs)
-    token = vault_login()
     code, body = kube(
         "GET",
         f"/apis/lab.test/v1/namespaces/{namespace}/customertokens",
     )
     if code != 200:
         raise RuntimeError(f"list tokens failed: {code}")
-    for item in body.get("items", []):
+    items = body.get("items", [])
+    certs = retain_signer(namespace, cert_pem, items)
+    publish_jwks(namespace, certs)
+    token = vault_login()
+    for item in items:
         reconcile_token(namespace, token, item, key_pem, certs[0])
 
 

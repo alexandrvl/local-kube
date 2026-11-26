@@ -11,6 +11,7 @@ spec:
   privateKey:
     algorithm: RSA
     size: 2048
+    rotationPolicy: Always
   usages:
     - digital signature
   issuerRef:
@@ -37,8 +38,15 @@ rules:
     verbs: ["get", "update", "patch"]
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["customers-signer", "signer-previous"]
+    resourceNames: ["customers-signer"]
     verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["signer-previous", "signer-observed"]
+    verbs: ["get", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "create", "update", "patch"]
@@ -405,6 +413,10 @@ spec:
               value: team-c-issuer
             - name: SIGNER_SECRET
               value: customers-signer
+            - name: PREVIOUS_SECRET
+              value: signer-previous
+            - name: OBSERVED_SECRET
+              value: signer-observed
             - name: JWKS_CONFIGMAP
               value: gateway-jwks
             - name: ISSUER

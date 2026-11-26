@@ -94,7 +94,7 @@ That route has no `auth/validator`. Its backend is `http://jwks:8080`. KrakenD's
 
 Community KrakenD 3.0.5 cannot replace this reader. `jwk_local_path` is loaded once at process start (`os.ReadFile` in `krakend-jose`) and is not read again, so a directory mount of the ConfigMap would not pick up a new key until the gateway process restarts. `backend/static-filesystem` would serve a file that changes, and it is Enterprise. This lab runs `docker.io/library/krakend:3.0.5`.
 
-`kid` is the SHA-256 of the certificate's Subject Public Key Info, base64url, without padding (`kid_of`). If a Secret named `signer-previous` exists, its certificate is appended to the same document. That Secret is not in the lab.
+`kid` is the SHA-256 of the certificate's Subject Public Key Info, base64url, without padding (`kid_of`). The controller keeps the public certificate it last read in Secret `signer-observed`. That Secret holds `tls.crt` only. The private key stays in the cert-manager Secret. Each pass compares the `kid` of `signer-observed` with the signer Secret. When they differ, the saved certificate is written to `signer-previous` before `signer-observed` is replaced. JWKS then contains both public keys. `signer-previous` is deleted once no `CustomerToken` in the namespace still names that `kid` on `status` or `status.previous` with an `expiresAt` in the future. One previous certificate is kept. A second rotation before those tokens expire replaces it.
 
 On 26 November 2026 each public URL returned one key, and the current acme token was accepted on each API. `https://physical-trading.trading.lab.test/.well-known/jwks.json` returned `V7yLY1C24CV-NzQvOGKtoTX1t-Wk-atwK3q-Q1rhyMs`. Energy prices returned `AokeOJ6DS5YNsnnlFpyOV-lwedR1g5y16TEh4nGSils`. Customers returned `tCAOmAZhUrzxnKrBQ4QEHG-86VKxe1A4Eq6NYeeU8xI`. POST `/time-series`, POST `/prices`, and POST `/customers` returned 200. The time-series Service itself returned 404 for `/.well-known/jwks.json`. A request from the team-a sample pod to `jwks.team-a.svc:8080` timed out.
 
@@ -147,11 +147,11 @@ The TLS certificate and the signing certificate are different objects. The TLS s
 
 Reusing the TLS key would tie token validity to HTTPS renewal, and anyone who can read the TLS secret could mint tokens. Teams share the CA. They do not share a signing key.
 
-The Role `token-controller` may `get` that Secret and `signer-previous`. The delivery team and the customer never see the private key. Later, `issuerRef` can point at an organisation issuer. The token shape stays the same.
+The Role `token-controller` may `get` the signer Secret. It may create a Secret in the namespace, and it may update or delete only `signer-observed` and `signer-previous`. Kubernetes does not apply `resourceNames` to `create`. The controller writes those two names and puts only the public certificate in them. The delivery team and the customer never see the private key. Later, `issuerRef` can point at an organisation issuer. The token shape stays the same.
 
 Customers do not hold a signing key. They hold the token string. They replace that string on the token schedule: every 30 days in the agreed plan (`ttl: 720h`, `overlap: 168h`), with both strings accepted for the last week. The objects in Git use `ttl: 3m` and `overlap: 90s` so the window can be seen in one run. `overlap` must be shorter than `ttl`, or `reconcile_token` leaves the token as it is.
 
-The signing certificate is a different clock. It lasts a year, and cert-manager starts renewal 30 days before expiry. This lab's cert-manager is 1.21 and the Certificate does not set `privateKey.rotationPolicy`. Since cert-manager 1.18 the default is `Always`, so that renewal mints a new private key. Tokens already issued keep verifying only while the old public key is still in the JWKS document. The controller publishes that old key when it is in `signer-previous`. Nothing copies the current certificate there before cert-manager replaces the signer Secret, so an unattended renewal would drop the old key. That handoff is not built. A key change still does not ask the customer to rotate a key of their own. The team sends a new token string.
+The signing certificate is a different clock. It lasts a year, and cert-manager starts renewal 30 days before expiry. `privateKey.rotationPolicy` is `Always`, so that renewal mints a new private key. The controller has already stored the public half of the key that was current. It copies that half to `signer-previous` when the signer Secret changes, and KrakenD picks up both keys on the 60 second cache. Tokens already issued keep verifying until their own `exp`. A key change does not ask the customer to rotate a key of their own. The team sends a new token string on the token schedule. The old public key leaves JWKS after the last token that names its `kid` has expired.
 
 On 26 November 2026 the physical-trading acme token was rotated without restarting KrakenD. The previous token expired at 18:47:49 Europe/Tallinn. The replacement expired at 18:49:21 Europe/Tallinn. During the overlap, POST `/time-series` returned 200 for both strings. After 18:47:49 the previous string returned 401 and the current string returned 200.
 
@@ -277,7 +277,7 @@ A different API on the same host, such as `physical-trading/orders`, needs a new
 - No shared KrakenD, and no cluster-wide JWKS. Keys stay in the team namespace.
 - Business APIs do not serve JWKS.
 - TLS certificates are not signing keys. There is no organisation issuer yet.
-- Signing-key rotation was not run. `signer-previous` is unused, and nothing copies the current certificate there before cert-manager renews it.
+- `signer-previous` holds one public certificate. A second signing-key rotation before the tokens from the first key expire replaces that copy.
 - The lab tokens are `3m` / `90s`, not the agreed `720h` / `168h`.
 - A human Vault login that a delivery team holds is not done.
 - No second API was added to an existing host. The services do not persist data across a restart.
