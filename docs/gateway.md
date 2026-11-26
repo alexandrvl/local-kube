@@ -163,7 +163,9 @@ Removing the signing certificate would reject every customer of that team. Revoc
 
 The API pod mounts that ConfigMap at `/etc/revoked` and reads it on each request. `revoked()` in the three `app.py` files returns 401 when the `jti` inside the forwarded `Token` is listed. A token that is not listed is handled as before. KrakenD still has one backend and `output_encoding: no-op`, so the 401 is the status the caller sees.
 
-The `jti` stays on the list until its own `expiresAt`. Setting `spec.revoked` back to false makes the controller sign a new token. The old strings stay denied until they expire.
+The `jti` stays on the list until its own `expiresAt`. Setting `spec.revoked` back to false makes the controller sign a new token. The old strings stay denied until they expire. The kubelet copies `gateway-revoked` into the pod on its sync, which took about a minute in the run below. Until that file is present the API still accepts the string.
+
+On 26 November 2026 at 22:13 Europe/Tallinn `acme-physical-trading-time-series` was set revoked. The controller logged `revoked` for `jti` `15e4915a-ba7f-4f69-a6ac-66d7807d3566` and wrote that one entry. POST `/time-series` with the old acme string returned 401 `{"error":"revoked"}`. Globex's time-series token was still accepted: the same series type returned 409, the ownership conflict, which is only reached after the token check. Acme's energy-prices token returned 200. At 22:14 the flag was cleared. The old time-series string still returned 401, and the newly issued acme string returned 200. `spec.revoked` and `status.revoked` were both false afterwards. Globex was never marked revoked.
 
 ## Where the token string lives
 
@@ -173,7 +175,7 @@ The platform issues the token. The customer stores the string and sends it back.
 
 The slash in `physical-trading/time-series` is a path separator, so the acme time-series token is `secret/teams/team-a/tokens/physical-trading/time-series/acme`. The object has `current` and `previous`. The issuer policies in `platform/vault/manifests/auth-config.yaml` allow create, read, and update on those paths only. A team policy cannot read another team's path. That was checked with a team-b userpass token and a team-a Kubernetes login.
 
-The string is not in Git, not in `CustomerToken` status, and not managed by Argo CD. Status stores `jti`, `kid`, `issuedAt`, and `expiresAt`. The controller logs in with the projected ServiceAccount token, role `team-a-issuer` (and the matching roles in the other namespaces).
+The string is not in Git, not in `CustomerToken` status, and not managed by Argo CD. Status stores `jti`, `kid`, `issuedAt`, `expiresAt`, and `revoked`. The controller logs in with the projected ServiceAccount token, role `team-a-issuer` (and the matching roles in the other namespaces).
 
 A delivery team was supposed to copy the string from the Vault UI, without kubectl, and send it to the customer. A human Vault login for that team is still missing. The Vault UI is enabled, and userpass users `team-a`, `team-b`, and `team-c` exist, but those passwords were not handed to a delivery team. There is also no Argo CD or Grafana account for them. The root token stays with the operator.
 
