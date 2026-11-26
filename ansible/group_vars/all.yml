@@ -1,0 +1,6 @@
+k3s_version: v1.36.6+k3s1
+cluster_pod_cidr: 10.42.0.0/16
+cluster_service_cidr: 10.43.0.0/16
+kubeconfig_path: "{{ playbook_dir }}/../credentials/kubeconfig"
+state_env_path: "{{ playbook_dir }}/../credentials/state.env"
+repo_root: "{{ playbook_dir }}/.."

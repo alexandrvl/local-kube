@@ -1,13 +1,11 @@
 # Local k3s platform
 
-Multipass VMs on this host run a small k3s cluster. Cilium replaces flannel and kube-proxy. HAProxy replaces Traefik. Argo CD syncs the platform from the Gitea repository it bootstraps.
+OpenTofu declares the Multipass nodes. Ansible configures the OS and k3s. Argo CD syncs every addon from the Gitea repository.
 
-The node layout, URLs, credentials, network-policy exceptions, and validation results are in `docs/k3s-platform-overview.md` after bootstrap finishes.
-
-Recreate from this checkout:
+The operator guide is `docs/infra.md`. Node layout, URLs, credentials, and validation are in `docs/k3s-platform-overview.md`.
 
 ```bash
-./bootstrap/bootstrap.sh
+make apply
 ```
 
-The script is idempotent. It does not touch the existing `agent-sandbox` Multipass VM. Credentials are written to `credentials/`, which is gitignored.
+`make destroy` deletes only `k3s-server` and `k3s-agent`. It does not touch the `agent-sandbox` VM. Credentials are written to `credentials/`, which is gitignored.

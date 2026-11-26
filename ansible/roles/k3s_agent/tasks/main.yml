@@ -1,0 +1,44 @@
+---
+- name: k3s agent service
+  ansible.builtin.command: systemctl is-active k3s-agent
+  register: k3s_active
+  changed_when: false
+  failed_when: false
+
+- name: Server node token
+  when: k3s_active.stdout != "active"
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: node_token
+  delegate_to: k3s-server
+  become: true
+  no_log: true
+
+- name: Install k3s agent when it is not already running
+  when: k3s_active.stdout != "active"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} \
+      K3S_URL=https://{{ hostvars['k3s-server'].ansible_host }}:6443 \
+      K3S_TOKEN={{ node_token.content | b64decode | trim }} \
+      sh -s - agent --node-ip={{ ansible_host }}
+  args:
+    executable: /bin/bash
+  no_log: true
+
+- name: Installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_version_out
+  changed_when: false
+
+- name: Agent unit
+  ansible.builtin.slurp:
+    src: /etc/systemd/system/k3s-agent.service
+  register: k3s_unit
+
+- name: Running agent matches the declared node IP
+  ansible.builtin.assert:
+    that:
+      - k3s_version in k3s_version_out.stdout
+      - ("--node-ip=" ~ ansible_host) in (k3s_unit.content | b64decode)
+    success_msg: "k3s agent {{ k3s_version }} is already configured"

@@ -4,3 +4,12 @@ bootstrap/state.env
 bootstrap/rendered/
 *.kubeconfig
 .DS_Store
+tofu/.terraform/
+tofu/*.tfstate
+tofu/*.tfstate.*
+tofu/tfplan
+tofu/platforms/*/.terraform/
+tofu/platforms/*/*.tfstate
+tofu/platforms/*/*.tfstate.*
+ansible/inventory/hosts.yml
+*.retry

@@ -1,0 +1,29 @@
+# Copy to terraform.tfvars in this directory. Do not commit the API token.
+# Export PROXMOX_VE_API_TOKEN=user@pve!lab=secret before plan.
+proxmox_endpoint   = "https://proxmox.example:8006"
+proxmox_node_name  = "pve"
+proxmox_datastore  = "local-lvm"
+proxmox_bridge     = "vmbr0"
+proxmox_template_id = 9000
+ssh_public_key     = "ssh-ed25519 AAAA... lab-k3s"
+
+nodes = {
+  k3s-server = {
+    role     = "server"
+    cpus     = 2
+    memory   = "4G"
+    disk     = "30G"
+    address  = "dhcp"
+    ssh_user = "ubuntu"
+    image    = "24.04"
+  }
+  k3s-agent = {
+    role     = "agent"
+    cpus     = 2
+    memory   = "3G"
+    disk     = "30G"
+    address  = "dhcp"
+    ssh_user = "ubuntu"
+    image    = "24.04"
+  }
+}

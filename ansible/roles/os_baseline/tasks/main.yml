@@ -1,0 +1,42 @@
+---
+- name: Kernel modules loaded at boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    mode: "0644"
+    content: |
+      overlay
+      br_netfilter
+      vxlan
+
+- name: Load kernel modules
+  ansible.builtin.command: modprobe {{ item }}
+  loop:
+    - overlay
+    - br_netfilter
+    - vxlan
+  changed_when: false
+
+- name: Sysctl for forwarding and inotify
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-k3s.conf
+    mode: "0644"
+    content: |
+      fs.inotify.max_user_instances = 1024
+      fs.inotify.max_user_watches = 1048576
+      fs.file-max = 2097152
+      net.ipv4.ip_forward = 1
+      net.ipv4.conf.all.forwarding = 1
+      net.ipv6.conf.all.forwarding = 1
+      vm.max_map_count = 262144
+  notify: Reload sysctl
+
+- name: Stop unattended upgrades
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop:
+    - apt-daily.timer
+    - apt-daily-upgrade.timer
+    - unattended-upgrades.service
+  failed_when: false

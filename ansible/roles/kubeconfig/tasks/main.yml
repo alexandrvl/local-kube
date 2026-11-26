@@ -1,0 +1,41 @@
+---
+- name: Read kubeconfig from the server
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: raw_kubeconfig
+
+- name: Write kubeconfig on the operator machine
+  ansible.builtin.copy:
+    dest: "{{ kubeconfig_path }}"
+    mode: "0600"
+    content: "{{ raw_kubeconfig.content | b64decode | replace('127.0.0.1', ansible_host) }}"
+  delegate_to: localhost
+  become: false
+
+- name: Read the node token
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: raw_token
+  no_log: true
+
+- name: Record node addresses and the join token
+  ansible.builtin.copy:
+    dest: "{{ state_env_path }}"
+    mode: "0600"
+    content: |
+      K3S_SERVER_IP={{ ansible_host }}
+      K3S_AGENT_IP={{ hostvars['k3s-agent'].ansible_host }}
+      K3S_TOKEN={{ raw_token.content | b64decode | trim }}
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Ensure the platform Application is present
+  ansible.builtin.command: kubectl apply -f {{ repo_root }}/gitops/root.yaml
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+    PATH: "{{ lookup('env', 'HOME') }}/.local/bin:{{ lookup('env', 'PATH') }}"
+  delegate_to: localhost
+  become: false
+  register: root_app
+  changed_when: "'created' in root_app.stdout or 'configured' in root_app.stdout"

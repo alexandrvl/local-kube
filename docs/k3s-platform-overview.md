@@ -1,6 +1,6 @@
 # Local k3s platform
 
-A two-node k3s lab on Multipass VMs that run on this host. Cilium is the CNI and the kube-proxy replacement. HAProxy is the ingress. cert-manager issues a local CA. Argo CD syncs the platform from a Gitea repository that lives in the cluster. Team namespaces are isolated by RBAC, Kyverno, Vault, and Cilium network policy.
+A two-node k3s lab on Multipass VMs that run on this host. OpenTofu declares the VMs. Ansible configures the OS and k3s. Cilium is the CNI and the kube-proxy replacement. HAProxy is the ingress. cert-manager issues a local CA. Argo CD syncs the platform from a Gitea repository that lives in the cluster. Team namespaces are isolated by RBAC, Kyverno, Vault, and Cilium network policy. The operator guide for VMs, Ansible, and a later VMware or Proxmox switch is `docs/infra.md`.
 
 Checked on 26 Nov 2026, afternoon Europe/Tallinn, on host `alexandrs-dev`.
 
@@ -8,6 +8,10 @@ Checked on 26 Nov 2026, afternoon Europe/Tallinn, on host `alexandrs-dev`.
 
 ```text
 host (alexandrs-dev, Multipass on KVM)
+  OpenTofu (tofu/) declares k3s-server and k3s-agent
+  Ansible configures OS baseline, k3s, and kubeconfig
+  Argo CD syncs gitops/ from Gitea
+        |
   k3s-server  10.114.66.182   control plane, etcd, most system pods
   k3s-agent   10.114.66.245   second worker
         |
@@ -33,7 +37,7 @@ The host is itself a KVM guest. Nested virt is on (`/dev/kvm` is present) and Mu
 
 Both nodes report `Ready` and `v1.36.6+k3s1`. Ubuntu image `24.04`. Pod CIDR `10.42.0.0/16`. Service CIDR `10.43.0.0/16`. API server `https://10.114.66.182:6443`.
 
-`agent-sandbox` (`10.114.66.250`, Ubuntu 26.04, 6 vCPU, 11.7 GiB configured) is not part of the cluster and is not modified by `bootstrap/destroy.sh`.
+`agent-sandbox` (`10.114.66.250`, Ubuntu 26.04, 6 vCPU, 11.7 GiB configured) is not part of the cluster. It is not in the OpenTofu state, and `make destroy` refuses a plan that mentions it.
 
 The host has 4 CPUs and 18 GiB. After the sandbox and these two VMs, about 4 GiB stays free on the host. A third k3s node was not added.
 
@@ -42,16 +46,16 @@ The host has 4 CPUs and 18 GiB. After the sandbox and these two VMs, about 4 GiB
 From this checkout, on the host (not inside a VM):
 
 ```bash
-./bootstrap/bootstrap.sh
+make apply
 ```
 
-The script is idempotent. It launches `k3s-server` and `k3s-agent` if they are missing, installs pinned k3s with flannel, kube-proxy, Traefik, and ServiceLB disabled, installs Cilium, cert-manager, HAProxy, Gitea, and Argo CD if those Helm releases are missing, writes `credentials/`, pushes `main` to Gitea, and applies `gitops/root.yaml`. Argo CD syncs every other addon from `gitops/apps/`.
+That is `tofu apply` for the Multipass nodes, SSH key setup, Ansible, and `kubectl apply` of `gitops/root.yaml`. `./bootstrap/bootstrap.sh` execs the same target. Details, including how these two VMs were imported instead of recreated, are in `docs/infra.md`.
 
 ```bash
-./bootstrap/destroy.sh
+make destroy
 ```
 
-deletes only `k3s-server` and `k3s-agent`.
+deletes only `k3s-server` and `k3s-agent`. `./bootstrap/destroy.sh` execs that target.
 
 Kubeconfig for day-to-day use:
 
@@ -84,6 +88,11 @@ Pinned in `versions/pins.env` and `versions/charts.env`. Installed versions:
 | OpenCost | chart 2.5.35, app 1.121.5 | Helm |
 | sample app | `ghcr.io/stefanprodan/podinfo:6.17.0` | manifest |
 | Helm | v4.3.2 | `~/.local/bin/helm` |
+| OpenTofu | 1.13.10 | `~/.local/bin/tofu` |
+| ansible-core | 2.22.0 | `~/.local/share/ansible-venv` |
+| Multipass provider | todoroff/multipass 2.3.1 | applied workspace `tofu/` |
+| vSphere provider | vmware/vsphere 2.18.0 | validated, not applied |
+| Proxmox provider | bpg/proxmox 0.124.0 | validated, not applied |
 | kubectl | v1.36.6 | `~/.local/bin/kubectl` |
 
 ## Namespaces and RBAC
@@ -227,6 +236,9 @@ OpenCost queries Mimir. `GET /allocation?window=1d&aggregate=namespace` returned
 - Vault unsealed. Team login read its own path and was denied the other team's path.
 - A Mimir metric and a Loki log line were queried. Grafana login returned 200.
 - Gitea received git pushes. Harbor accepted an image push. Kyverno denied two bad pods. Falco loaded rules and emitted an alert. OpenCost returned an allocation.
+- The existing Multipass nodes were imported into OpenTofu. `tofu plan` reports no changes and does not mention `agent-sandbox`. A destroy plan lists only `k3s-server` and `k3s-agent`; it was not applied.
+- Ansible's second run reported `changed=0` on both nodes. After that, both nodes were still `Ready`, `https://sample.lab.local/healthz` returned 200 with the platform CA, and `https://argocd.lab.local` returned 200.
+- `tofu validate` succeeded for `tofu/platforms/vmware` and `tofu/platforms/proxmox`. Neither hypervisor is installed, and neither workspace was applied.
 
 ## Argo CD status
 
@@ -255,4 +267,6 @@ Re-check with `kubectl -n argocd get applications`.
 - Hubble relay TLS is disabled. Cilium also runs the chart's envoy DaemonSet.
 - Host `/etc/hosts` is unchanged. Use `--resolve` or add the line above.
 - OpenCost does not persist `/var/configs`.
-- The API is slow while Argo CD renders several Helm charts. `bootstrap.sh` does not wait for every app to become Healthy.
+- The API is slow while Argo CD renders several Helm charts. `make apply` does not wait for every app to become Healthy.
+- Multipass addresses are DHCP. The contract field `address` is `dhcp`; the real IPs are outputs. Imported memory and disk stay as byte counts in state, with `ignore_changes`, so a plan does not stop the VMs to rewrite `4G` or `30G`.
+- VMware and Proxmox modules are real and validate. They have not been applied. Ansible still reads inventory from the Multipass workspace until `scripts/render-inventory.py` is pointed at the other root.

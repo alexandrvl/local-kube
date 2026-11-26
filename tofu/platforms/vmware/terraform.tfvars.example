@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars in this directory. Do not commit secrets.
+# Export VSPHERE_USER, VSPHERE_PASSWORD, and VSPHERE_SERVER before plan.
+vmware_datacenter    = "datacenter"
+vmware_datastore     = "datastore1"
+vmware_network       = "VM Network"
+vmware_resource_pool = "Resources"
+vmware_template      = "ubuntu-24.04-template"
+vmware_folder        = ""
+ssh_public_key       = "ssh-ed25519 AAAA... lab-k3s"
+
+nodes = {
+  k3s-server = {
+    role     = "server"
+    cpus     = 2
+    memory   = "4G"
+    disk     = "30G"
+    address  = "dhcp"
+    ssh_user = "ubuntu"
+    image    = "24.04"
+  }
+  k3s-agent = {
+    role     = "agent"
+    cpus     = 2
+    memory   = "3G"
+    disk     = "30G"
+    address  = "dhcp"
+    ssh_user = "ubuntu"
+    image    = "24.04"
+  }
+}

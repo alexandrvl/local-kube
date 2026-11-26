@@ -1,0 +1,51 @@
+---
+- name: k3s server service
+  ansible.builtin.command: systemctl is-active k3s
+  register: k3s_active
+  changed_when: false
+  failed_when: false
+
+- name: Install k3s server when it is not already running
+  when: k3s_active.stdout != "active"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
+      --cluster-init \
+      --flannel-backend=none \
+      --disable-network-policy \
+      --disable=traefik \
+      --disable=servicelb \
+      --disable-kube-proxy \
+      --tls-san={{ ansible_host }} \
+      --node-ip={{ ansible_host }} \
+      --write-kubeconfig-mode=644 \
+      --cluster-cidr={{ cluster_pod_cidr }} \
+      --service-cidr={{ cluster_service_cidr }}
+  args:
+    executable: /bin/bash
+
+- name: Installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_version_out
+  changed_when: false
+
+- name: Server unit
+  ansible.builtin.slurp:
+    src: /etc/systemd/system/k3s.service
+  register: k3s_unit
+
+- name: Running server matches the declared flags
+  ansible.builtin.assert:
+    that:
+      - k3s_version in k3s_version_out.stdout
+      - "'--cluster-init' in k3s_unit_text"
+      - "'--flannel-backend=none' in k3s_unit_text"
+      - "'--disable-network-policy' in k3s_unit_text"
+      - "'--disable=traefik' in k3s_unit_text"
+      - "'--disable=servicelb' in k3s_unit_text"
+      - "'--disable-kube-proxy' in k3s_unit_text"
+      - ("--cluster-cidr=" ~ cluster_pod_cidr) in k3s_unit_text
+      - ("--service-cidr=" ~ cluster_service_cidr) in k3s_unit_text
+    success_msg: "k3s server {{ k3s_version }} is already configured"
+  vars:
+    k3s_unit_text: "{{ k3s_unit.content | b64decode }}"
