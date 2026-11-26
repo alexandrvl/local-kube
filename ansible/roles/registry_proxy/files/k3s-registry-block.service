@@ -1,0 +1,10 @@
+[Unit]
+Description=Block direct pulls from public container registries
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/k3s-registry-block
+
+[Install]
+WantedBy=multi-user.target

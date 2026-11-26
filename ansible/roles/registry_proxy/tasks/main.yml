@@ -1,0 +1,75 @@
+---
+- name: Harbor pull-through projects exist
+  run_once: true
+  delegate_to: localhost
+  become: false
+  ansible.builtin.command: python3 {{ repo_root }}/scripts/harbor-proxy-projects.py
+  changed_when: false
+
+- name: k3s config directory
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    mode: "0755"
+
+- name: Platform CA for Harbor
+  ansible.builtin.copy:
+    src: "{{ repo_root }}/credentials/platform-ca.crt"
+    dest: /etc/rancher/k3s/platform-ca.crt
+    mode: "0644"
+  notify: Restart k3s
+
+- name: Node resolves harbor.lab.test to the ingress
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '\sharbor\.lab\.test(\s|$)'
+    line: "{{ '127.0.0.1' if 'k3s_server' in group_names else hostvars['k3s-server']['ansible_host'] }} harbor.lab.test"
+    state: present
+
+- name: containerd registry mirrors
+  ansible.builtin.copy:
+    src: registries.yaml
+    dest: /etc/rancher/k3s/registries.yaml
+    mode: "0644"
+  notify: Restart k3s
+
+- name: Registry addresses to block
+  ansible.builtin.copy:
+    src: registry-block.list
+    dest: /etc/rancher/k3s/registry-block.list
+    mode: "0644"
+
+- name: Host firewall table
+  ansible.builtin.copy:
+    src: registry-block.nft
+    dest: /etc/rancher/k3s/registry-block.nft
+    mode: "0644"
+
+- name: Registry block refresh script
+  ansible.builtin.copy:
+    src: k3s-registry-block
+    dest: /usr/local/sbin/k3s-registry-block
+    mode: "0755"
+
+- name: Registry block service
+  ansible.builtin.copy:
+    src: k3s-registry-block.service
+    dest: /etc/systemd/system/k3s-registry-block.service
+    mode: "0644"
+
+- name: Registry block timer
+  ansible.builtin.copy:
+    src: k3s-registry-block.timer
+    dest: /etc/systemd/system/k3s-registry-block.timer
+    mode: "0644"
+
+- name: Enable the registry block timer
+  ansible.builtin.systemd:
+    name: k3s-registry-block.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Load the registry block now
+  ansible.builtin.command: /usr/local/sbin/k3s-registry-block
+  changed_when: false

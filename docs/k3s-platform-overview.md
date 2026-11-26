@@ -142,11 +142,14 @@ Further exceptions, each one a named policy:
 | vault-from-teams | Vault TCP 8200 from team-a, team-b, team-c, and ingress |
 | teams-to-vault | Team pods egress to Vault TCP 8200 |
 | registry-pulls | Any non-kube-system pod to Harbor TCP 80, 443, 5000 |
+| harbor-proxy-upstream | Harbor pods may egress to the world on TCP 443. Node processes may not |
 | opencost-to-mimir / mimir-from-opencost | OpenCost to Mimir TCP 9009 |
 | kube-system-platform | kube-system to the API, node, and health endpoints, and ingress to Hubble |
 | kube-dns-from-cluster | Cluster pods to CoreDNS :53, and CoreDNS egress to the host resolver :53 |
 
-Public image pulls (ghcr.io, docker.io, quay.io) are done by containerd on the node. They do not pass through the pod network, so NetworkPolicy does not see them. In-cluster pulls from Harbor are covered by `registry-pulls`.
+Node image pulls go through Harbor, not the public registries. Ansible role `registry_proxy` writes `/etc/rancher/k3s/registries.yaml` on both nodes. containerd rewrites `docker.io`, `ghcr.io`, `quay.io`, `registry.k8s.io`, `ecr-public.aws.com`, and `reg.kyverno.io` to the matching Harbor pull-through project (`dockerhub`, `ghcr`, `quay`, `k8s`, `ecr-public`, `kyverno`). The node resolves `harbor.lab.test` to the ingress: `127.0.0.1` on the server, `10.114.66.182` on the agent. kubelet and `k3s crictl` use that mirror. `k3s ctr` does not, so a raw `ctr` pull is reset instead of proxied.
+
+The host firewall blocks the direct path. Registry DNS changes, so an address set alone is not enough. `k3s-registry-block` keeps an nftables set of the resolved addresses and an iptables chain `K3S_REGISTRY` that rejects TCP 443 whose TLS server name is in `registry-block.list`. A timer refreshes that every five minutes. Harbor's own upstream is the `harbor-proxy-upstream` policy, not a node exception. Names that are not on that list, such as `gcr.io`, are still reachable from the node.
 
 Proven from the sample pod in `team-a`:
 
@@ -281,7 +284,7 @@ Re-check with `kubectl -n argocd get applications`.
 
 - One server and one agent. There is still no second control-plane node. The host cannot spare another VM next to `agent-sandbox`.
 - The 4 GiB server has restarted k3s under memory pressure. The Argo CD controller, Mimir, Loki, Grafana, and Harbor run on `k3s-agent`. Vault stays on the server with a 1Gi file volume. Avoid extra workloads on `k3s-server`.
-- Node-level image pulls are outside NetworkPolicy. Containerd on the node pulls public images. That was left as-is.
+- Names that are not in `ansible/roles/registry_proxy/files/registry-block.list` can still be dialed directly from a node. The list covers the registries this cluster mirrors.
 - Grafana is 12.3.1, the version chart 10.5.15 ships. Harbor is 2.15.4, the version chart 1.19.4 ships. The pinned charts cannot ship Grafana 13 or Harbor 2.15.5.
 - Hubble relay TLS is disabled. Cilium also runs the chart's envoy DaemonSet.
 - The API is slow while Argo CD renders several Helm charts. `make apply` does not wait for every app to become Healthy.

@@ -1,0 +1,18 @@
+# Public registry endpoints the node itself must not dial.
+# Harbor pods reach these through Cilium; this list is only the host firewall.
+registry-1.docker.io
+auth.docker.io
+index.docker.io
+docker.io
+production.cloudflare.docker.com
+ghcr.io
+pkg-containers.githubusercontent.com
+quay.io
+cdn.quay.io
+cdn01.quay.io
+cdn02.quay.io
+cdn03.quay.io
+registry.k8s.io
+ecr-public.aws.com
+public.ecr.aws
+reg.kyverno.io

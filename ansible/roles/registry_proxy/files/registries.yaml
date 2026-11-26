@@ -1,0 +1,37 @@
+# containerd pulls public images from Harbor proxy-cache projects.
+# A direct pull is blocked by the host firewall in this same role.
+mirrors:
+  docker.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "dockerhub/$1"
+  ghcr.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "ghcr/$1"
+  quay.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "quay/$1"
+  registry.k8s.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "k8s/$1"
+  ecr-public.aws.com:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "ecr-public/$1"
+  reg.kyverno.io:
+    endpoint:
+      - https://harbor.lab.test
+    rewrite:
+      "^(.*)": "kyverno/$1"
+configs:
+  harbor.lab.test:
+    tls:
+      ca_file: /etc/rancher/k3s/platform-ca.crt

@@ -17,6 +17,18 @@
   roles:
     - k3s_agent
 
+- name: Image pull proxy on the agent
+  hosts: k3s_agent
+  become: true
+  roles:
+    - registry_proxy
+
+- name: Image pull proxy on the server
+  hosts: k3s_server
+  become: true
+  roles:
+    - registry_proxy
+
 - name: Fetch kubeconfig and record the GitOps entrypoint
   hosts: k3s_server
   become: true

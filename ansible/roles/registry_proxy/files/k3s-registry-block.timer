@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh public registry addresses blocked on this node
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

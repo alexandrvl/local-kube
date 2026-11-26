@@ -1,0 +1,45 @@
+#!/bin/bash
+# Refresh the host firewall set of public registry addresses.
+set -euo pipefail
+list=/etc/rancher/k3s/registry-block.list
+nft list table inet k3s_registry >/dev/null 2>&1 || nft -f /etc/rancher/k3s/registry-block.nft
+v4=$(mktemp)
+v6=$(mktemp)
+trap 'rm -f "$v4" "$v6"' EXIT
+while read -r name; do
+  case "$name" in
+    ""|\#*) continue ;;
+  esac
+  getent ahostsv4 "$name" 2>/dev/null | awk '{print $1}' >> "$v4" || true
+  getent ahostsv6 "$name" 2>/dev/null | awk '$1 ~ /:/ {print $1}' >> "$v6" || true
+done < "$list"
+sort -u "$v4" -o "$v4"
+sort -u "$v6" -o "$v6"
+nft flush set inet k3s_registry registries4
+nft flush set inet k3s_registry registries6
+if [ -s "$v4" ]; then
+  nft add element inet k3s_registry registries4 "{ $(paste -sd, "$v4") }"
+fi
+if [ -s "$v6" ]; then
+  nft add element inet k3s_registry registries6 "{ $(paste -sd, "$v6") }"
+fi
+
+# Registry DNS answers rotate, so an address set goes stale. Match the TLS
+# server name as well. nft xtables compat is unavailable on this kernel.
+install_sni() {
+  local cmd="$1"
+  "$cmd" -N K3S_REGISTRY 2>/dev/null || true
+  "$cmd" -F K3S_REGISTRY
+  if ! "$cmd" -C OUTPUT -j K3S_REGISTRY 2>/dev/null; then
+    "$cmd" -I OUTPUT 1 -j K3S_REGISTRY
+  fi
+  while read -r name; do
+    case "$name" in
+      ""|\#*) continue ;;
+    esac
+    "$cmd" -A K3S_REGISTRY -p tcp --dport 443 -m string --string "$name" --algo bm -m comment --comment k3s-registry-sni -j REJECT --reject-with tcp-reset
+  done < "$list"
+}
+install_sni iptables
+install_sni ip6tables
+echo "registry block v4=$(wc -l < "$v4") v6=$(wc -l < "$v6")"
