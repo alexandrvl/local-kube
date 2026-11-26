@@ -689,3 +689,90 @@ spec:
         - matchExpressions:
             - key: k8s:app.kubernetes.io/component
               operator: DoesNotExist
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jwks-from-gateway
+  namespace: team-a
+spec:
+  description: The team JWKS service accepts calls from its KrakenD only.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: jwks
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: gateway
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:app.kubernetes.io/component
+              operator: NotIn
+              values:
+                - gateway
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:app.kubernetes.io/component
+              operator: DoesNotExist
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jwks-from-gateway
+  namespace: team-b
+spec:
+  description: The team JWKS service accepts calls from its KrakenD only.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: jwks
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: gateway
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:app.kubernetes.io/component
+              operator: NotIn
+              values:
+                - gateway
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:app.kubernetes.io/component
+              operator: DoesNotExist
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jwks-from-gateway
+  namespace: team-c
+spec:
+  description: The team JWKS service accepts calls from its KrakenD only.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: jwks
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: gateway
+  ingressDeny:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ingress
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:app.kubernetes.io/component
+              operator: NotIn
+              values:
+                - gateway
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:app.kubernetes.io/component
+              operator: DoesNotExist

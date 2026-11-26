@@ -28,9 +28,6 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/healthz":
             self.send_json(200, {"ok": True})
             return
-        if path == "/.well-known/jwks.json":
-            self.serve_jwks()
-            return
         prefix = "/prices/"
         if path.startswith(prefix):
             caller = self.caller()
@@ -83,17 +80,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         PRICES[key] = {"owner": caller, "value": body["value"]}
         self.send_json(200, {"market": market, "delivery": delivery, "owner": caller, "value": body["value"]})
-
-    def serve_jwks(self):
-        try:
-            raw = open("/etc/jwks/jwks.json", "rb").read()
-        except OSError:
-            raw = b'{"keys":[]}'
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
 
     def read_body(self):
         encoding = (self.headers.get("Transfer-Encoding") or "").lower()

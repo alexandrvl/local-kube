@@ -1,0 +1,30 @@
+name: jwks image
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/jwks/**"
+      - ".gitea/workflows/jwks.yaml"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: sh
+    steps:
+      - name: build and push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          set -eu
+          apk add --no-cache git ca-certificates
+          cp /opt/lab-ca.crt /usr/local/share/ca-certificates/lab-platform-ca.crt
+          update-ca-certificates
+          git -c http.sslCAInfo=/opt/lab-ca.crt clone --depth 1 --branch main \
+            "https://x-access-token:${GITHUB_TOKEN}@gitea.lab.test/labadmin/local-kubenrtetes.git" src
+          cd src
+          echo "$HARBOR_PASSWORD" | docker login harbor.lab.test -u "$HARBOR_USERNAME" --password-stdin
+          docker build -f services/jwks/Dockerfile -t harbor.lab.test/lab/jwks:current services/jwks
+          docker push harbor.lab.test/lab/jwks:current
